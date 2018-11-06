@@ -10,6 +10,7 @@ venv/
 
 # Tensorflow
 data/
+logs/
 
 # C extensions
 *.so

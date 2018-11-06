@@ -1,6 +1,8 @@
 import tensorflow as tf
 import numpy as np
 import pickle
+import time
+
 
 class Data:
     # Train and Test Data Layout
@@ -52,7 +54,8 @@ train = Data('train')
 test = Data('test')
 
 # Step 1: Data Selection: Select 40000 examples
-train.select(finish=40000)
+train_size = 40000
+train.select(finish=train_size)
 
 # Step 2: Augment Data
 
@@ -63,6 +66,7 @@ train.select(finish=40000)
 
 def create_conv_layer(num, inputs, filters, size=5, stride=1):
     layer_name = 'Conv' + str(num) + '-' + str(size) + 'x' + str(size) + 'x' + str(filters) + '-' + str(stride)
+
     return tf.layers.conv2d(inputs=inputs,
                             filters=filters,
                             kernel_size=[size, size],
@@ -93,7 +97,11 @@ def create_dense_layer(num, inputs, nodes, activation=tf.nn.relu):
                            name=layer_name)
 
 
-input_layer = tf.reshape(train.data, [-1, 32, 32, 3])
+image_size = 32
+image_depth = 3
+raw_input_holder = tf.placeholder(dtype=tf.float32, shape=[None, image_size * image_size * image_depth])
+
+input_layer = tf.reshape(raw_input_holder, [-1, image_size, image_size, image_depth])
 
 first_convolution_layer = create_conv_layer(num=1,
                                             inputs=input_layer,
@@ -110,30 +118,34 @@ second_pooling_layer = create_pooling_layer(num=1,
                                             inputs=second_convolution_layer)
 
 flattened_pooling_layer = tf.layers.flatten(inputs=second_pooling_layer,
-                                            name='Flatten Pool2')
+                                            name='FlattenPool2')
 
 first_dense_layer = create_dense_layer(num=1,
                                        inputs=flattened_pooling_layer,
                                        nodes=120)
 
 second_dense_layer = create_dense_layer(num=2,
-                                        inputs=flattened_pooling_layer,
+                                        inputs=first_dense_layer,
                                         nodes=84)
 
-output_layer = create_dense_layer(num=-1,
-                                  inputs=second_dense_layer,
-                                  nodes=100,
-                                  activation=tf.nn.softmax)
+
+loss = tf.losses.sparse_softmax_cross_entropy(labels=train.fine_labels,
+                                              logits=second_dense_layer)
+
+optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
+optimizer.minimize(loss)
 
 # Step 4.1: Build debug ops
 debug_input_op = tf.summary.image(name='Reshaped Input',
-                                  tensor=input_layer)
+                                  tensor=input_layer,
+                                  max_outputs=train_size,
+                                  family='Train')
 
 # Step 5: Run Graph
 with tf.Session() as sess:
-    debug_input = sess.run(debug_input_op)
+    debug_input = sess.run(debug_input_op, feed_dict={raw_input_holder: train.data})
 
     # Write debug info to board
-    writer = tf.train.SummaryWriter('./logs')
+    writer = tf.summary.FileWriter('logs/train/' + str(time.time()))
     writer.add_summary(debug_input)
     writer.close()
