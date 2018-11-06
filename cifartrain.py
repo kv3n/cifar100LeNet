@@ -4,6 +4,11 @@ import pickle
 import time
 
 
+EPOCHS = 10
+BATCH_SIZE = 64
+LEARNING_RATE = 0.001
+
+
 class Data:
     # Train and Test Data Layout
     # Dictionary with following keys
@@ -99,9 +104,17 @@ def create_dense_layer(num, inputs, nodes, activation=tf.nn.relu):
 
 image_size = 32
 image_depth = 3
-raw_input_holder = tf.placeholder(dtype=tf.float32, shape=[None, image_size * image_size * image_depth])
 
-input_layer = tf.reshape(raw_input_holder, [-1, image_size, image_size, image_depth])
+raw_input = tf.data.Dataset.from_tensor_slices((train.data, train.fine_labels))
+
+# Making training batches
+input_dataset = raw_input.repeat().batch(batch_size=BATCH_SIZE)
+input_iter = input_dataset.make_one_shot_iterator()
+
+train_data_batch, train_label_batch = input_iter.get_next()
+train_data_batch_cast = tf.cast(train_data_batch, tf.float32)
+
+input_layer = tf.reshape(train_data_batch_cast, [-1, image_size, image_size, image_depth])
 
 first_convolution_layer = create_conv_layer(num=1,
                                             inputs=input_layer,
@@ -128,14 +141,17 @@ second_dense_layer = create_dense_layer(num=2,
                                         inputs=first_dense_layer,
                                         nodes=84)
 
+logits = create_dense_layer(num=3,
+                            inputs=second_dense_layer,
+                            nodes=100)
 
-loss = tf.losses.sparse_softmax_cross_entropy(labels=train.fine_labels,
-                                              logits=second_dense_layer)
 
-optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
-optimizer.minimize(loss)
+loss = tf.losses.sparse_softmax_cross_entropy(labels=train_label_batch,
+                                              logits=logits)
 
-# Step 4.1: Build debug ops
+train_step = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(loss)
+
+# Step 4.2: Build debug ops
 debug_input_op = tf.summary.image(name='Reshaped Input',
                                   tensor=input_layer,
                                   max_outputs=train_size,
@@ -143,9 +159,14 @@ debug_input_op = tf.summary.image(name='Reshaped Input',
 
 # Step 5: Run Graph
 with tf.Session() as sess:
-    debug_input = sess.run(debug_input_op, feed_dict={raw_input_holder: train.data})
+    sess.run(tf.global_variables_initializer())
+
+    for i in range(EPOCHS):
+        _, loss_value = sess.run([train_step, loss])
+        print("Iter: {}, Loss: {:.4f}".format(i, loss_value))
 
     # Write debug info to board
+    debug_input = sess.run(debug_input_op)
     writer = tf.summary.FileWriter('logs/train/' + str(time.time()))
     writer.add_summary(debug_input)
     writer.close()
