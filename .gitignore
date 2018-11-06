@@ -3,6 +3,14 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Pycharm and Mac
+*.DS_Store
+.idea/
+venv/
+
+# Tensorflow
+data/
+
 # C extensions
 *.so
 
