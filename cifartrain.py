@@ -1,8 +1,18 @@
 import tensorflow as tf
 import numpy as np
 import pickle
+import argparse
 import time
 
+parser = argparse.ArgumentParser(description='Tensorflow Log Name')
+parser.add_argument('logname', type=str, nargs='?', help='name of logfile', default='--t')
+
+args = parser.parse_args()
+log_name = args.logname
+if log_name == '--t':
+    log_name = str(time.time())
+
+print(log_name)
 
 class Data:
     # Train and Test Data Layout
@@ -217,7 +227,6 @@ merged_summary = tf.summary.merge_all()
 # Step 5: Run Graph
 with tf.Session() as sess:
     # debug writer
-    log_name = "logs/{}".format(time.time())
     train_writer = tf.summary.FileWriter(logdir=log_name + '_train/',
                                          graph=sess.graph)
 
