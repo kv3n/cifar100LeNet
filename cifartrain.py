@@ -4,14 +4,15 @@ import pickle
 import time
 
 
-EPOCHS = 10
+EPOCHS = 1000
 BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 IMAGE_SIZE = 32
 IMAGE_DEPTH = 3
 TRAIN_SIZE = 40000
-EPOCH_SIZE = TRAIN_SIZE // BATCH_SIZE
-HALF_EPOCH_SIZE = EPOCH_SIZE // 2
+NUM_BATCHES = TRAIN_SIZE // BATCH_SIZE
+HALF_EPOCH_SIZE = NUM_BATCHES // 2
+TWICE_EPOCH_SIZE = NUM_BATCHES * 2
 
 
 class Data:
@@ -52,6 +53,8 @@ class Data:
         self.num_data = len(self.data)
 
     def select(self, start=0, finish=-1):
+        if finish == -1:
+            finish = self.num_data
         self.batch_label = self.batch_label[start:finish]
         self.coarse_labels = self.coarse_labels[start:finish]
         self.fine_labels = self.fine_labels[start:finish]
@@ -109,18 +112,50 @@ def create_dense_layer(num, inputs, nodes, activation=tf.nn.relu):
 
 
 # Step 4.0: Prep Data
-data_x = tf.placeholder(tf.uint8, name='Features')
-data_y = tf.placeholder(tf.int64, name='Labels')
-raw_input = tf.data.Dataset.from_tensor_slices((data_x, data_y))
+def mean_image_initializer():
+    return tf.reduce_mean(tf.cast(train.data, tf.float32), axis=0, keepdims=True)
 
-dataset = raw_input.repeat(count=EPOCHS).batch(batch_size=BATCH_SIZE)
-input_iter = dataset.make_initializable_iterator()
 
-data_batch, label_batch = input_iter.get_next()
+mean_image = tf.Variable(initial_value=mean_image_initializer(),
+                         name='MeanImage',
+                         trainable=False)
+
+
+is_train = tf.placeholder(tf.bool, name='IsTrain')
+
+
+# Training Data Iterator
+train_raw_input = tf.data.Dataset.from_tensor_slices((train.data, train.fine_labels))
+train_dataset = train_raw_input.repeat(count=EPOCHS).batch(batch_size=BATCH_SIZE)
+train_input_iter = train_dataset.make_one_shot_iterator()
+
+# Validation Data Iterator
+validation_raw_input = tf.data.Dataset.from_tensor_slices((validation.data, validation.fine_labels))
+validation_dataset = validation_raw_input.repeat(count=TWICE_EPOCH_SIZE).batch(batch_size=validation.num_data)
+validation_input_iter = validation_dataset.make_one_shot_iterator()
+
+
+def get_train_iter():
+    return train_input_iter.get_next(name='TrainingBatch')
+
+
+def get_validation_iter():
+    return validation_input_iter.get_next(name='ValidationData')
+
+
+data_batch, label_batch = tf.cond(pred=is_train,
+                                  true_fn=get_train_iter,
+                                  false_fn=get_validation_iter,
+                                  name='DataSelector')
 data_batch_cast = tf.cast(data_batch, tf.float32)
+data_batch_cast = tf.subtract(x=data_batch_cast,
+                              y=mean_image,
+                              name='MeanSubtraction')
 
 # Step 4.1: Build Architecture
-input_layer = tf.reshape(data_batch_cast, [-1, IMAGE_SIZE, IMAGE_SIZE, IMAGE_DEPTH])
+input_layer = tf.reshape(tensor=data_batch_cast,
+                         shape=[-1, IMAGE_SIZE, IMAGE_SIZE, IMAGE_DEPTH],
+                         name='MakeImage')
 
 
 first_convolution_layer = create_conv_layer(num=1,
@@ -163,8 +198,8 @@ train_step = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(loss_o
 
 prediction_op = tf.equal(tf.argmax(input=logits, axis=1), label_batch)
 accuracy_op = tf.reduce_mean(tf.cast(x=prediction_op, dtype=tf.float32))
-tf.summary.scalar(name='Accuracy',
-                  tensor=accuracy_op)
+accuracy_summary = tf.summary.scalar(name='Accuracy',
+                                     tensor=accuracy_op)
 
 merged_summary = tf.summary.merge_all()
 
@@ -178,27 +213,28 @@ with tf.Session() as sess:
     validation_writer = tf.summary.FileWriter(logdir=log_name + '_val/')
 
     sess.run(tf.global_variables_initializer())
-    sess.run(input_iter.initializer, feed_dict={data_x: train.data, data_y: train.fine_labels})
 
     global_batch_count = 0
     half_epoch_count = 0
     while True:
+        global_batch_count += 1
         try:
-            global_batch_count += 1
-
             if global_batch_count % HALF_EPOCH_SIZE == 0:
+                _, accuracy = sess.run([accuracy_op, accuracy_summary],
+                                       feed_dict={is_train: False})
+                validation_writer.add_summary(accuracy,
+                                              global_step=global_batch_count)
+
                 half_epoch_count += 1
                 print('Ran half epoch ' + str(half_epoch_count))
-
-                _, loss, accuracy, batch_summary = sess.run([train_step, loss_op, accuracy_op, merged_summary])
-                validation_writer.add_summary(batch_summary,
-                                              global_step=global_batch_count)
             else:
-                _, loss, accuracy, batch_summary = sess.run([train_step, loss_op, accuracy_op, merged_summary])
+                _, _, _, batch_summary = sess.run([train_step, loss_op, accuracy_op, merged_summary],
+                                                  feed_dict={is_train: True})
                 train_writer.add_summary(batch_summary,
                                          global_step=global_batch_count)
+
+                print('-- Batch Count ' + str(global_batch_count % NUM_BATCHES))
 
         except tf.errors.OutOfRangeError:
             print('End of Epochs')
             break
-
