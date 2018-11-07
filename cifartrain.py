@@ -131,7 +131,7 @@ is_train = tf.placeholder(tf.bool, name='IsTrain')
 
 # Training Data Iterator
 train_raw_input = tf.data.Dataset.from_tensor_slices((train.data, train.fine_labels))
-train_dataset = train_raw_input.repeat(count=EPOCHS).batch(batch_size=BATCH_SIZE)
+train_dataset = train_raw_input.repeat(count=EPOCHS).shuffle(buffer_size=train.num_data).batch(batch_size=BATCH_SIZE)
 train_input_iter = train_dataset.make_one_shot_iterator()
 
 # Validation Data Iterator
