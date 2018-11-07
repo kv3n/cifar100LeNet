@@ -4,17 +4,6 @@ import pickle
 import time
 
 
-EPOCHS = 1000
-BATCH_SIZE = 64
-LEARNING_RATE = 0.001
-IMAGE_SIZE = 32
-IMAGE_DEPTH = 3
-TRAIN_SIZE = 40000
-NUM_BATCHES = TRAIN_SIZE // BATCH_SIZE
-HALF_EPOCH_SIZE = NUM_BATCHES // 2
-TWICE_EPOCH_SIZE = NUM_BATCHES * 2
-
-
 class Data:
     # Train and Test Data Layout
     # Dictionary with following keys
@@ -68,8 +57,20 @@ validation = Data('train')
 test = Data('test')
 
 # Step 1: Data Selection: Select 40000 examples
+TRAIN_SIZE = 40000
 train.select(finish=TRAIN_SIZE)
 validation.select(start=TRAIN_SIZE)
+
+# Step 1.1: Setup training constants
+EPOCHS = 1000
+BATCH_SIZE = 64
+LEARNING_RATE = 0.001
+IMAGE_SIZE = 32
+IMAGE_DEPTH = 3
+TRAIN_SIZE = train.num_data
+VALIDATIONS_PER_EPOCH = 2
+NUM_BATCHES_PER_EPOCH = TRAIN_SIZE // BATCH_SIZE
+VALIDATION_INTERVAL = NUM_BATCHES_PER_EPOCH // VALIDATIONS_PER_EPOCH
 
 # Step 2: Augment Data
 
@@ -113,7 +114,11 @@ def create_dense_layer(num, inputs, nodes, activation=tf.nn.relu):
 
 # Step 4.0: Prep Data
 def mean_image_initializer():
-    return tf.reduce_mean(tf.cast(train.data, tf.float32), axis=0, keepdims=True)
+    cast_data = tf.cast(train.data, tf.float32)
+    normalized_data = tf.divide(cast_data, tf.constant(255.0, tf.float32))
+    return tf.reduce_mean(cast_data,
+                          axis=0,
+                          keepdims=True)
 
 
 mean_image = tf.Variable(initial_value=mean_image_initializer(),
@@ -131,7 +136,8 @@ train_input_iter = train_dataset.make_one_shot_iterator()
 
 # Validation Data Iterator
 validation_raw_input = tf.data.Dataset.from_tensor_slices((validation.data, validation.fine_labels))
-validation_dataset = validation_raw_input.repeat(count=TWICE_EPOCH_SIZE).batch(batch_size=validation.num_data)
+validation_dataset = validation_raw_input.repeat(count=EPOCHS * VALIDATIONS_PER_EPOCH)\
+                                         .batch(batch_size=validation.num_data)
 validation_input_iter = validation_dataset.make_one_shot_iterator()
 
 
@@ -147,7 +153,9 @@ data_batch, label_batch = tf.cond(pred=is_train,
                                   true_fn=get_train_iter,
                                   false_fn=get_validation_iter,
                                   name='DataSelector')
-data_batch_cast = tf.cast(data_batch, tf.float32)
+data_batch_cast = tf.cast(data_batch, tf.float32) # TODO: Watch out for this cast
+# TODO: 0.0 to 1.0 the data... Is this needed?
+#data_batch_cast = tf.divide(data_batch_cast, tf.constant(255.0, tf.float32))
 data_batch_cast = tf.subtract(x=data_batch_cast,
                               y=mean_image,
                               name='MeanSubtraction')
@@ -217,9 +225,18 @@ with tf.Session() as sess:
     global_batch_count = 0
     half_epoch_count = 0
     while True:
-        global_batch_count += 1
         try:
-            if global_batch_count % HALF_EPOCH_SIZE == 0:
+            # Run mini-batch
+            _, _, _, batch_summary = sess.run([train_step, loss_op, accuracy_op, merged_summary],
+                                              feed_dict={is_train: True})
+            train_writer.add_summary(batch_summary,
+                                     global_step=global_batch_count)
+
+            global_batch_count += 1
+
+            print('-- Batch Count ' + str(global_batch_count % (NUM_BATCHES_PER_EPOCH + 1)))
+
+            if global_batch_count % VALIDATION_INTERVAL == 0:
                 _, accuracy = sess.run([accuracy_op, accuracy_summary],
                                        feed_dict={is_train: False})
                 validation_writer.add_summary(accuracy,
@@ -227,14 +244,6 @@ with tf.Session() as sess:
 
                 half_epoch_count += 1
                 print('Ran half epoch ' + str(half_epoch_count))
-            else:
-                _, _, _, batch_summary = sess.run([train_step, loss_op, accuracy_op, merged_summary],
-                                                  feed_dict={is_train: True})
-                train_writer.add_summary(batch_summary,
-                                         global_step=global_batch_count)
-
-                print('-- Batch Count ' + str(global_batch_count % NUM_BATCHES))
-
         except tf.errors.OutOfRangeError:
             print('End of Epochs')
             break
