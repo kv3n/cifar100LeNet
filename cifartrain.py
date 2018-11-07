@@ -59,7 +59,7 @@ test = Data('test')
 # Step 1: Data Selection: Select 40000 examples
 TRAIN_SIZE = 40000
 train.select(finish=TRAIN_SIZE)
-validation.select(start=TRAIN_SIZE)
+validation.select(start=TRAIN_SIZE)#, finish=TRAIN_SIZE + 100)
 
 # Step 1.1: Setup training constants
 EPOCHS = 1000
@@ -131,7 +131,10 @@ is_train = tf.placeholder(tf.bool, name='IsTrain')
 
 # Training Data Iterator
 train_raw_input = tf.data.Dataset.from_tensor_slices((train.data, train.fine_labels))
-train_dataset = train_raw_input.repeat(count=EPOCHS).shuffle(buffer_size=train.num_data).batch(batch_size=BATCH_SIZE)
+train_dataset = train_raw_input.shuffle(buffer_size=train.num_data,
+                                        reshuffle_each_iteration=True)\
+                               .repeat(count=EPOCHS)\
+                               .batch(batch_size=BATCH_SIZE)
 train_input_iter = train_dataset.make_one_shot_iterator()
 
 # Validation Data Iterator
