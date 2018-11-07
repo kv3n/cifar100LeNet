@@ -12,8 +12,6 @@ log_name = args.logname
 if log_name == '--t':
     log_name = str(time.time())
 
-print(log_name)
-
 class Data:
     # Train and Test Data Layout
     # Dictionary with following keys
@@ -227,6 +225,7 @@ merged_summary = tf.summary.merge_all()
 # Step 5: Run Graph
 with tf.Session() as sess:
     # debug writer
+    log_name = 'logs/' + log_name
     train_writer = tf.summary.FileWriter(logdir=log_name + '_train/',
                                          graph=sess.graph)
 
