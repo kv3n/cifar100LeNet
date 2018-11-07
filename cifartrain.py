@@ -124,7 +124,7 @@ def create_dense_layer(num, inputs, nodes, activation=tf.nn.relu):
 def mean_image_initializer():
     cast_data = tf.cast(train.data, tf.float32)
     normalized_data = tf.divide(cast_data, tf.constant(255.0, tf.float32))
-    return tf.reduce_mean(cast_data,
+    return tf.reduce_mean(normalized_data,
                           axis=0,
                           keepdims=True)
 
@@ -166,7 +166,7 @@ data_batch, label_batch = tf.cond(pred=is_train,
                                   name='DataSelector')
 data_batch_cast = tf.cast(data_batch, tf.float32) # TODO: Watch out for this cast
 # TODO: 0.0 to 1.0 the data... Is this needed?
-#data_batch_cast = tf.divide(data_batch_cast, tf.constant(255.0, tf.float32))
+data_batch_cast = tf.divide(data_batch_cast, tf.constant(255.0, tf.float32))
 data_batch_cast = tf.subtract(x=data_batch_cast,
                               y=mean_image,
                               name='MeanSubtraction')
