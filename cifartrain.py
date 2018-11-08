@@ -79,6 +79,8 @@ TRAIN_SIZE = train.num_data
 VALIDATIONS_PER_EPOCH = 2
 NUM_BATCHES_PER_EPOCH = TRAIN_SIZE // BATCH_SIZE
 VALIDATION_INTERVAL = NUM_BATCHES_PER_EPOCH // VALIDATIONS_PER_EPOCH
+TESTS_PER_EPOCH = 0.1
+TEST_INTERVAL = int(NUM_BATCHES_PER_EPOCH // TESTS_PER_EPOCH)
 
 # Step 2: Augment Data
 
@@ -135,6 +137,7 @@ mean_image = tf.Variable(initial_value=mean_image_initializer(),
 
 
 is_train = tf.placeholder(tf.bool, name='IsTrain')
+is_test = tf.placeholder(tf.bool, name='IsTest')
 
 
 # Training Data Iterator
@@ -151,6 +154,12 @@ validation_dataset = validation_raw_input.repeat(count=EPOCHS * VALIDATIONS_PER_
                                          .batch(batch_size=validation.num_data)
 validation_input_iter = validation_dataset.make_one_shot_iterator()
 
+# Test Data Iterator
+test_raw_input = tf.data.Dataset.from_tensor_slices((test.data, test.fine_labels))
+test_dataset = test_raw_input.repeat(count=EPOCHS * TESTS_PER_EPOCH)\
+                              .batch(batch_size=test.num_data)
+test_input_iter = test_dataset.make_one_shot_iterator()
+
 
 def get_train_iter():
     return train_input_iter.get_next(name='TrainingBatch')
@@ -160,11 +169,22 @@ def get_validation_iter():
     return validation_input_iter.get_next(name='ValidationData')
 
 
+def get_test_iter():
+    return test_input_iter.get_next(name='TestData')
+
+
+def test_vs_valid():
+    return tf.cond(pred=is_test,
+                   true_fn=get_test_iter,
+                   false_fn=get_validation_iter,
+                   name='TestSelector')
+
+
 data_batch, label_batch = tf.cond(pred=is_train,
                                   true_fn=get_train_iter,
-                                  false_fn=get_validation_iter,
-                                  name='DataSelector')
-data_batch_cast = tf.cast(data_batch, tf.float32) # TODO: Watch out for this cast
+                                  false_fn=test_vs_valid,
+                                  name='TrainSelector')
+data_batch_cast = tf.cast(data_batch, tf.float32)
 # TODO: 0.0 to 1.0 the data... Is this needed?
 data_batch_cast = tf.divide(data_batch_cast, tf.constant(255.0, tf.float32))
 data_batch_cast = tf.subtract(x=data_batch_cast,
@@ -215,10 +235,17 @@ tf.summary.scalar(name='Loss',
 train_step = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(loss_op)
 
 
-prediction_op = tf.equal(tf.argmax(input=logits, axis=1), label_batch)
-accuracy_op = tf.reduce_mean(tf.cast(x=prediction_op, dtype=tf.float32))
+predictions = tf.argmax(input=logits,
+                        axis=1,
+                        name='Predict')
+
+accuracy_op = tf.reduce_mean(tf.cast(x=tf.equal(predictions, label_batch), dtype=tf.float32))
 accuracy_summary = tf.summary.scalar(name='Accuracy',
                                      tensor=accuracy_op)
+
+confusion_matrix_op = tf.confusion_matrix(labels=label_batch,
+                                          predictions=predictions,
+                                          name='Confusion')
 
 merged_summary = tf.summary.merge_all()
 
@@ -231,30 +258,44 @@ with tf.Session() as sess:
 
     validation_writer = tf.summary.FileWriter(logdir=log_name + '_val/')
 
+    test_writer = tf.summary.FileWriter(logdir=log_name + '_test/')
+
     sess.run(tf.global_variables_initializer())
 
     global_batch_count = 0
     half_epoch_count = 0
+    test_epoch_count = 0
     while True:
         try:
             # Run mini-batch
             _, _, _, batch_summary = sess.run([train_step, loss_op, accuracy_op, merged_summary],
-                                              feed_dict={is_train: True})
+                                              feed_dict={is_train: True, is_test: False})
             train_writer.add_summary(batch_summary,
                                      global_step=global_batch_count)
 
             global_batch_count += 1
 
-            print('-- Batch Count ' + str(global_batch_count % (NUM_BATCHES_PER_EPOCH + 1)))
+            #print('-- Batch Count ' + str(global_batch_count % (NUM_BATCHES_PER_EPOCH + 1)))
 
             if global_batch_count % VALIDATION_INTERVAL == 0:
                 _, accuracy = sess.run([accuracy_op, accuracy_summary],
-                                       feed_dict={is_train: False})
+                                       feed_dict={is_train: False, is_test: False})
                 validation_writer.add_summary(accuracy,
                                               global_step=global_batch_count)
 
                 half_epoch_count += 1
                 print('Ran half epoch ' + str(half_epoch_count))
+
+            if global_batch_count % TEST_INTERVAL == 0:
+                confusion_matrix, accuracy = sess.run([confusion_matrix_op, accuracy_summary],
+                                                      feed_dict={is_train: False, is_test: True})
+                test_writer.add_summary(accuracy,
+                                        global_step=global_batch_count)
+
+                test_epoch_count += 1
+                print('Ran test ' + str(test_epoch_count))
+                print(confusion_matrix)
+                print('-----------------------------------')
         except tf.errors.OutOfRangeError:
             print('End of Epochs')
             break
