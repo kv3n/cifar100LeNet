@@ -1,6 +1,8 @@
 import tensorflow as tf
 import itertools
 import numpy as np
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import pickle
 import argparse
@@ -263,6 +265,8 @@ confusion_matrix_op = tf.confusion_matrix(labels=label_batch,
 merged_summary = tf.summary.merge_all()
 
 def save_confusion_matix(confusion_matrix, count):
+
+
     sum_across_axis = confusion_matrix.sum(axis=1)[:, np.newaxis]
     confusion_matrix = confusion_matrix.astype('float') / sum_across_axis
     confusion_matrix = np.nan_to_num(confusion_matrix)
