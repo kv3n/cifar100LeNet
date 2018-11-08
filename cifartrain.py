@@ -83,13 +83,12 @@ validation = Data('train')
 test = Data('test')
 
 # Step 1: Data Selection: Select 40000 examples
-TRAIN_SIZE = 400
+TRAIN_SIZE = 40000
 train.select(finish=TRAIN_SIZE)
-validation.select(start=TRAIN_SIZE, finish=TRAIN_SIZE + 100)
-test.select(finish=100)
+validation.select(start=TRAIN_SIZE)
 
 # Step 1.1: Setup training constants
-EPOCHS = 10
+EPOCHS = 500
 BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 IMAGE_SIZE = 32
