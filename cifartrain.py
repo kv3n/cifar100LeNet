@@ -150,13 +150,13 @@ train_input_iter = train_dataset.make_one_shot_iterator()
 
 # Validation Data Iterator
 validation_raw_input = tf.data.Dataset.from_tensor_slices((validation.data, validation.fine_labels))
-validation_dataset = validation_raw_input.repeat(count=EPOCHS * VALIDATIONS_PER_EPOCH)\
+validation_dataset = validation_raw_input.repeat(count=int(EPOCHS * VALIDATIONS_PER_EPOCH))\
                                          .batch(batch_size=validation.num_data)
 validation_input_iter = validation_dataset.make_one_shot_iterator()
 
 # Test Data Iterator
 test_raw_input = tf.data.Dataset.from_tensor_slices((test.data, test.fine_labels))
-test_dataset = test_raw_input.repeat(count=EPOCHS * TESTS_PER_EPOCH)\
+test_dataset = test_raw_input.repeat(count=int(EPOCHS * TESTS_PER_EPOCH))\
                               .batch(batch_size=test.num_data)
 test_input_iter = test_dataset.make_one_shot_iterator()
 
