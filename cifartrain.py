@@ -1,5 +1,7 @@
 import tensorflow as tf
+import itertools
 import numpy as np
+import matplotlib.pyplot as plt
 import pickle
 import argparse
 import time
@@ -60,17 +62,34 @@ class Data:
         self.num_data = len(self.data)
 
 
+class Meta:
+    def __init__(self):
+        def unpickle(file):
+            with open(file, 'rb') as fo:
+                dict = pickle.load(fo, encoding='bytes')
+            return dict
+
+        self.raw = unpickle('data/meta')
+        self.fine_label_names = [fine_label_name.decode('utf-8') for fine_label_name in self.raw[b'fine_label_names']]
+        self.coarse_label_names = [coarse_label_name.decode('utf-8') for coarse_label_name in self.raw[b'coarse_label_names']]
+        self.fine_label_count = len(self.fine_label_names)
+        self.coarse_label_count = len(self.coarse_label_names)
+
+
+meta = Meta()
+
 train = Data('train')
 validation = Data('train')
 test = Data('test')
 
 # Step 1: Data Selection: Select 40000 examples
-TRAIN_SIZE = 40000
+TRAIN_SIZE = 400
 train.select(finish=TRAIN_SIZE)
-validation.select(start=TRAIN_SIZE)#, finish=TRAIN_SIZE + 100)
+validation.select(start=TRAIN_SIZE, finish=TRAIN_SIZE + 100)
+test.select(finish=100)
 
 # Step 1.1: Setup training constants
-EPOCHS = 1000
+EPOCHS = 10
 BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 IMAGE_SIZE = 32
@@ -136,8 +155,7 @@ mean_image = tf.Variable(initial_value=mean_image_initializer(),
                          trainable=False)
 
 
-is_train = tf.placeholder(tf.bool, name='IsTrain')
-is_test = tf.placeholder(tf.bool, name='IsTest')
+data_type = tf.placeholder(tf.uint8, name='DataType')
 
 
 # Training Data Iterator
@@ -173,17 +191,13 @@ def get_test_iter():
     return test_input_iter.get_next(name='TestData')
 
 
-def test_vs_valid():
-    return tf.cond(pred=is_test,
-                   true_fn=get_test_iter,
-                   false_fn=get_validation_iter,
-                   name='TestSelector')
+data_batch, label_batch = tf.case(pred_fn_pairs={tf.equal(data_type, tf.constant(1, tf.uint8)): get_train_iter,
+                                                 tf.equal(data_type, tf.constant(2, tf.uint8)): get_validation_iter,
+                                                 tf.equal(data_type, tf.constant(3, tf.uint8)): get_test_iter},
+                                  exclusive=True,
+                                  default=get_train_iter,
+                                  name='DataSelector')
 
-
-data_batch, label_batch = tf.cond(pred=is_train,
-                                  true_fn=get_train_iter,
-                                  false_fn=test_vs_valid,
-                                  name='TrainSelector')
 data_batch_cast = tf.cast(data_batch, tf.float32)
 # TODO: 0.0 to 1.0 the data... Is this needed?
 data_batch_cast = tf.divide(data_batch_cast, tf.constant(255.0, tf.float32))
@@ -249,6 +263,33 @@ confusion_matrix_op = tf.confusion_matrix(labels=label_batch,
 
 merged_summary = tf.summary.merge_all()
 
+def save_confusion_matix(confusion_matrix, count):
+    sum_across_axis = confusion_matrix.sum(axis=1)[:, np.newaxis]
+    confusion_matrix = confusion_matrix.astype('float') / sum_across_axis
+    confusion_matrix = np.nan_to_num(confusion_matrix)
+    np.set_printoptions(2)
+
+    plt.figure(figsize=(100, 100))
+    plt.imshow(confusion_matrix, interpolation='nearest', cmap=plt.cm.Blues)
+    plt.title('Confusion Matrix: ' + str(count))
+    plt.colorbar()
+    tick_marks = np.arange(meta.fine_label_count)
+    plt.xticks(tick_marks, meta.fine_label_names, rotation=45)
+    plt.yticks(tick_marks, meta.fine_label_names)
+
+    fmt = '.2f'
+    thresh = confusion_matrix.max() / 2.
+    for i, j in itertools.product(range(confusion_matrix.shape[0]), range(confusion_matrix.shape[1])):
+        plt.text(j, i, format(confusion_matrix[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if confusion_matrix[i, j] > thresh else "black")
+
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+
+    plt.savefig(log_name + '_confusion_matrix' + str(count) + '.png')
+
+
 # Step 5: Run Graph
 with tf.Session() as sess:
     # debug writer
@@ -269,7 +310,7 @@ with tf.Session() as sess:
         try:
             # Run mini-batch
             _, _, _, batch_summary = sess.run([train_step, loss_op, accuracy_op, merged_summary],
-                                              feed_dict={is_train: True, is_test: False})
+                                              feed_dict={data_type: 1})
             train_writer.add_summary(batch_summary,
                                      global_step=global_batch_count)
 
@@ -279,7 +320,7 @@ with tf.Session() as sess:
 
             if global_batch_count % VALIDATION_INTERVAL == 0:
                 _, accuracy = sess.run([accuracy_op, accuracy_summary],
-                                       feed_dict={is_train: False, is_test: False})
+                                       feed_dict={data_type: 2})
                 validation_writer.add_summary(accuracy,
                                               global_step=global_batch_count)
 
@@ -288,7 +329,7 @@ with tf.Session() as sess:
 
             if global_batch_count % TEST_INTERVAL == 0:
                 confusion_matrix, accuracy = sess.run([confusion_matrix_op, accuracy_summary],
-                                                      feed_dict={is_train: False, is_test: True})
+                                                      feed_dict={data_type: 3})
                 test_writer.add_summary(accuracy,
                                         global_step=global_batch_count)
 
@@ -296,6 +337,7 @@ with tf.Session() as sess:
                 print('Ran test ' + str(test_epoch_count))
                 print(confusion_matrix)
                 print('-----------------------------------')
+                save_confusion_matix(confusion_matrix, test_epoch_count)
         except tf.errors.OutOfRangeError:
             print('End of Epochs')
             break
