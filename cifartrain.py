@@ -88,7 +88,6 @@ test = Data('test')
 TRAIN_SIZE = 40000
 train.select(finish=TRAIN_SIZE)
 validation.select(start=TRAIN_SIZE)
-#test.select(start=0, finish=500)
 
 # Step 1.1: Setup training constants
 EPOCHS = 100
@@ -203,9 +202,19 @@ data_batch_cast = tf.subtract(x=data_batch_cast,
                               name='MeanSubtraction')
 
 # Step 3.2: Stitch Layers
+"""
+# This reshape isn't correct. But that said, this gave 30% results? What did I do?
 input_layer = tf.reshape(tensor=data_batch_cast,
                          shape=[-1, IMAGE_SIZE, IMAGE_SIZE, IMAGE_DEPTH],
                          name='MakeImage')
+"""
+
+input_layer = tf.reshape(tensor=data_batch_cast,
+                         shape=[-1, IMAGE_DEPTH, IMAGE_SIZE, IMAGE_SIZE],
+                         name='MakeImage-Part1')
+input_layer = tf.transpose(a=input_layer,
+                           perm=[0, 2, 3, 1],
+                           name='MakeImage-Part2')
 
 
 first_convolution_layer = create_conv_layer(num=1,
@@ -248,21 +257,30 @@ train_step = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(loss_o
 
 
 # Step 4: Detail accuracy and confusion matrix scores.
-topk_op = tf.nn.in_top_k(predictions=logits,
+top1_op = tf.nn.in_top_k(predictions=logits,
                          targets=label_batch,
                          k=1,
-                         name='TopK')
+                         name='Top1')
 
-accuracy_op = tf.reduce_mean(tf.cast(topk_op, tf.float32))
+accuracy_op = tf.reduce_mean(tf.cast(top1_op, tf.float32))
 accuracy_summary = tf.summary.scalar(tensor=accuracy_op,
-                                     name='Accuracy')
+                                     name='Accuracy1')
+
+top5_op = tf.nn.in_top_k(predictions=logits,
+                         targets=label_batch,
+                         k=5,
+                         name='Top5')
+
+accuracy5_op = tf.reduce_mean(tf.cast(top5_op, tf.float32))
+accuracy5_summary = tf.summary.scalar(tensor=accuracy5_op,
+                                      name='Accuracy5')
 
 
-predictions = tf.argmax(input=logits,
-                        axis=1,
-                        name='PredictLabels')
+prediction_op = tf.argmax(input=logits,
+                          axis=1,
+                          name='PredictLabels')
 confusion_matrix_op = tf.confusion_matrix(labels=label_batch,
-                                          predictions=predictions,
+                                          predictions=prediction_op,
                                           name='Confusion')
 
 merged_summary = tf.summary.merge_all()
@@ -292,6 +310,26 @@ def save_confusion_matix(confusion_matrix, count):
     plt.xlabel('Predicted label')
 
     plt.savefig(log_name + '_confusion_matrix' + str(count) + '.png')
+    plt.close()
+
+
+def gather(data, labels, predictions, count):
+    samples = np.random.choice(a=len(data),
+                               size=20)
+
+    def save_sample(sample):
+        image = np.reshape(data[sample], [3, 32, 32])
+        image = np.transpose(image, [1, 2, 0])
+        plt.figure()
+        plt.imshow(image)
+        real_name = meta.fine_label_names[labels[sample]]
+        predict_name = meta.fine_label_names[predictions[sample]]
+        plt.xlabel('Real: ' + real_name + ', Predict: ' + predict_name)
+        plt.savefig(log_name + '_' + str(count) + '_sample_' + real_name + '.png')
+        plt.close()
+
+    for sample in samples:
+        save_sample(sample)
 
 
 # Step 5: Run Graph
@@ -313,8 +351,8 @@ with tf.Session() as sess:
     while True:
         try:
             # Run mini-batch
-            _, _, _, batch_summary = sess.run([train_step, loss_op, accuracy_op, merged_summary],
-                                              feed_dict={data_type: 1})
+            _, batch_summary = sess.run([train_step, merged_summary],
+                                        feed_dict={data_type: 1})
 
             train_writer.add_summary(batch_summary,
                                      global_step=global_batch_count)
@@ -322,18 +360,23 @@ with tf.Session() as sess:
             global_batch_count += 1
 
             if global_batch_count % VALIDATION_INTERVAL == 0:
-                _, accuracy = sess.run([accuracy_op, accuracy_summary],
-                                       feed_dict={data_type: 2})
-                validation_writer.add_summary(accuracy,
+                acc, acc5 = sess.run([accuracy_summary, accuracy5_summary],
+                                     feed_dict={data_type: 2})
+                validation_writer.add_summary(acc,
+                                              global_step=half_epoch_count)
+                validation_writer.add_summary(acc5,
                                               global_step=half_epoch_count)
 
                 half_epoch_count += 1
                 print('Ran half epoch ' + str(half_epoch_count))
 
             if global_batch_count % TEST_INTERVAL == 0:
-                confusion_matrix, _, accuracy = sess.run([confusion_matrix_op, accuracy_op, accuracy_summary],
-                                                         feed_dict={data_type: 3})
-                test_writer.add_summary(accuracy,
+                data, labels, predictions, confusion_matrix, acc, acc5 = \
+                    sess.run([data_batch, label_batch, prediction_op, confusion_matrix_op, accuracy_summary, accuracy5_summary],
+                             feed_dict={data_type: 3})
+                test_writer.add_summary(acc,
+                                        global_step=test_epoch_count)
+                test_writer.add_summary(acc5,
                                         global_step=test_epoch_count)
 
                 test_epoch_count += 1
@@ -341,6 +384,7 @@ with tf.Session() as sess:
                 print(confusion_matrix)
                 print('-----------------------------------')
                 save_confusion_matix(confusion_matrix, test_epoch_count)
+                gather(data, labels, predictions, test_epoch_count)
         except tf.errors.OutOfRangeError:
             print('End of Epochs')
             break
