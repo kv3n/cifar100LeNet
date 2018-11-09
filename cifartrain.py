@@ -248,15 +248,19 @@ train_step = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(loss_o
 
 
 # Step 4: Detail accuracy and confusion matrix scores.
-predictions = tf.nn.in_top_k(predictions=logits,
-                             targets=label_batch,
-                             k=1,
-                             name='Predict')
+topk_op = tf.nn.in_top_k(predictions=logits,
+                         targets=label_batch,
+                         k=1,
+                         name='TopK')
 
-accuracy_op = tf.reduce_mean(tf.cast(predictions, tf.float32))
+accuracy_op = tf.reduce_mean(tf.cast(topk_op, tf.float32))
 accuracy_summary = tf.summary.scalar(tensor=accuracy_op,
                                      name='Accuracy')
 
+
+predictions = tf.argmax(input=logits,
+                        axis=1,
+                        name='PredictLabels')
 confusion_matrix_op = tf.confusion_matrix(labels=label_batch,
                                           predictions=predictions,
                                           name='Confusion')
@@ -328,7 +332,7 @@ with tf.Session() as sess:
 
             if global_batch_count % TEST_INTERVAL == 0:
                 confusion_matrix, _, accuracy = sess.run([confusion_matrix_op, accuracy_op, accuracy_summary],
-                                                      feed_dict={data_type: 3})
+                                                         feed_dict={data_type: 3})
                 test_writer.add_summary(accuracy,
                                         global_step=test_epoch_count)
 
