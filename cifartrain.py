@@ -266,11 +266,11 @@ merged_summary = tf.summary.merge_all()
 
 def save_confusion_matix(confusion_matrix, count):
     sum_across_axis = confusion_matrix.sum(axis=1)[:, np.newaxis]
-    confusion_matrix = confusion_matrix.astype('float') / sum_across_axis
-    confusion_matrix = np.nan_to_num(confusion_matrix)
+    confusion_matrix_interp = confusion_matrix.astype('float') / sum_across_axis
+    confusion_matrix_interp = np.nan_to_num(confusion_matrix_interp)
 
     plt.figure(figsize=(100, 100))
-    plt.imshow(confusion_matrix, interpolation='nearest', cmap=plt.cm.Blues)
+    plt.imshow(confusion_matrix_interp, interpolation='nearest', cmap=plt.cm.Blues)
     plt.title('Confusion Matrix: ' + str(count))
     plt.colorbar()
     tick_marks = np.arange(meta.fine_label_count)
@@ -278,11 +278,11 @@ def save_confusion_matix(confusion_matrix, count):
     plt.yticks(tick_marks, meta.fine_label_names)
 
     fmt = 'd'
-    thresh = confusion_matrix.max() / 2.
+    thresh = confusion_matrix_interp.max() / 2.
     for i, j in itertools.product(range(confusion_matrix.shape[0]), range(confusion_matrix.shape[1])):
         plt.text(j, i, format(confusion_matrix[i, j], fmt),
                  horizontalalignment="center",
-                 color="white" if confusion_matrix[i, j] > thresh else "black")
+                 color="white" if confusion_matrix_interp[i, j] > thresh else "black")
 
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
