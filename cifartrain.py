@@ -324,18 +324,22 @@ with tf.Session() as sess:
             #print('-- Batch Count ' + str(global_batch_count % (NUM_BATCHES_PER_EPOCH + 1)))
 
             if global_batch_count % VALIDATION_INTERVAL == 0:
-                _, accuracy = sess.run([accuracy_op, accuracy_summary],
-                                       feed_dict={data_type: 2})
+                _, accuracy, accuracy_5 = sess.run([accuracy_op, accuracy_summary, accuracy_summary_5],
+                                                   feed_dict={data_type: 2})
                 validation_writer.add_summary(accuracy,
+                                              global_step=global_batch_count)
+                validation_writer.add_summary(accuracy_5,
                                               global_step=global_batch_count)
 
                 half_epoch_count += 1
                 print('Ran half epoch ' + str(half_epoch_count))
 
             if global_batch_count % TEST_INTERVAL == 0:
-                confusion_matrix, accuracy = sess.run([confusion_matrix_op, accuracy_summary],
-                                                      feed_dict={data_type: 3})
+                confusion_matrix, accuracy, accuracy_5 = sess.run([confusion_matrix_op, accuracy_summary, accuracy_summary_5],
+                                                                  feed_dict={data_type: 3})
                 test_writer.add_summary(accuracy,
+                                        global_step=global_batch_count)
+                test_writer.add_summary(accuracy_5,
                                         global_step=global_batch_count)
 
                 test_epoch_count += 1
