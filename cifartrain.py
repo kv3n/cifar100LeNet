@@ -85,10 +85,10 @@ validation = Data('train')
 test = Data('test')
 
 # Step 1: Data Selection: Select 40000 examples
-TRAIN_SIZE = 400
+TRAIN_SIZE = 40000
 train.select(finish=TRAIN_SIZE)
-validation.select(start=TRAIN_SIZE, finish=TRAIN_SIZE + 200)
-test.select(start=0, finish=500)
+validation.select(start=TRAIN_SIZE)
+#test.select(start=0, finish=500)
 
 # Step 1.1: Setup training constants
 EPOCHS = 10
