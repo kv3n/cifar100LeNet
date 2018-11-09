@@ -91,7 +91,7 @@ validation.select(start=TRAIN_SIZE)
 #test.select(start=0, finish=500)
 
 # Step 1.1: Setup training constants
-EPOCHS = 10
+EPOCHS = 100
 BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 IMAGE_SIZE = 32
