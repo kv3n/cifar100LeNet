@@ -252,7 +252,7 @@ predictions = tf.nn.in_top_k(predictions=logits,
                              k=1,
                              name='Predict')
 
-accuracy_op = tf.reduce_mean(predictions)
+accuracy_op = tf.reduce_mean(tf.cast(predictions, tf.float32))
 accuracy_summary = tf.summary.scalar(tensor=accuracy_op,
                                      name='Accuracy')
 
@@ -261,7 +261,7 @@ predictions_5 = tf.nn.in_top_k(predictions=logits,
                                k=5,
                                name='Predict5')
 
-accuracy_op_5 = tf.reduce_mean(predictions_5)
+accuracy_op_5 = tf.reduce_mean(tf.cast(predictions_5, tf.float32))
 accuracy_summary_5 = tf.summary.scalar(tensor=accuracy_op_5,
                                        name='Accuracy5')
 
