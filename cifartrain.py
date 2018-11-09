@@ -85,12 +85,13 @@ validation = Data('train')
 test = Data('test')
 
 # Step 1: Data Selection: Select 40000 examples
-TRAIN_SIZE = 40000
+TRAIN_SIZE = 400
 train.select(finish=TRAIN_SIZE)
-validation.select(start=TRAIN_SIZE)
+validation.select(start=TRAIN_SIZE, finish=TRAIN_SIZE + 200)
+test.select(start=0, finish=500)
 
 # Step 1.1: Setup training constants
-EPOCHS = 500
+EPOCHS = 10
 BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 IMAGE_SIZE = 32
@@ -256,16 +257,6 @@ accuracy_op = tf.reduce_mean(tf.cast(predictions, tf.float32))
 accuracy_summary = tf.summary.scalar(tensor=accuracy_op,
                                      name='Accuracy')
 
-predictions_5 = tf.nn.in_top_k(predictions=logits,
-                               targets=label_batch,
-                               k=5,
-                               name='Predict5')
-
-accuracy_op_5 = tf.reduce_mean(tf.cast(predictions_5, tf.float32))
-accuracy_summary_5 = tf.summary.scalar(tensor=accuracy_op_5,
-                                       name='Accuracy5')
-
-
 confusion_matrix_op = tf.confusion_matrix(labels=label_batch,
                                           predictions=predictions,
                                           name='Confusion')
@@ -274,6 +265,10 @@ merged_summary = tf.summary.merge_all()
 
 
 def save_confusion_matix(confusion_matrix, count):
+    sum_across_axis = confusion_matrix.sum(axis=1)[:, np.newaxis]
+    confusion_matrix = confusion_matrix.astype('float') / sum_across_axis
+    confusion_matrix = np.nan_to_num(confusion_matrix)
+
     plt.figure(figsize=(100, 100))
     plt.imshow(confusion_matrix, interpolation='nearest', cmap=plt.cm.Blues)
     plt.title('Confusion Matrix: ' + str(count))
@@ -316,31 +311,26 @@ with tf.Session() as sess:
             # Run mini-batch
             _, _, _, batch_summary = sess.run([train_step, loss_op, accuracy_op, merged_summary],
                                               feed_dict={data_type: 1})
+
             train_writer.add_summary(batch_summary,
                                      global_step=global_batch_count)
 
             global_batch_count += 1
 
-            #print('-- Batch Count ' + str(global_batch_count % (NUM_BATCHES_PER_EPOCH + 1)))
-
             if global_batch_count % VALIDATION_INTERVAL == 0:
-                _, accuracy, accuracy_5 = sess.run([accuracy_op, accuracy_summary, accuracy_summary_5],
-                                                   feed_dict={data_type: 2})
+                _, accuracy = sess.run([accuracy_op, accuracy_summary],
+                                       feed_dict={data_type: 2})
                 validation_writer.add_summary(accuracy,
-                                              global_step=global_batch_count)
-                validation_writer.add_summary(accuracy_5,
-                                              global_step=global_batch_count)
+                                              global_step=half_epoch_count)
 
                 half_epoch_count += 1
                 print('Ran half epoch ' + str(half_epoch_count))
 
             if global_batch_count % TEST_INTERVAL == 0:
-                confusion_matrix, accuracy, accuracy_5 = sess.run([confusion_matrix_op, accuracy_summary, accuracy_summary_5],
-                                                                  feed_dict={data_type: 3})
+                confusion_matrix, _, accuracy = sess.run([confusion_matrix_op, accuracy_op, accuracy_summary],
+                                                      feed_dict={data_type: 3})
                 test_writer.add_summary(accuracy,
-                                        global_step=global_batch_count)
-                test_writer.add_summary(accuracy_5,
-                                        global_step=global_batch_count)
+                                        global_step=test_epoch_count)
 
                 test_epoch_count += 1
                 print('Ran test ' + str(test_epoch_count))
