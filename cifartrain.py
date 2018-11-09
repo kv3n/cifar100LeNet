@@ -247,7 +247,7 @@ train_step = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(loss_o
 
 
 # Step 4: Detail accuracy and confusion matrix scores.
-predictions = tf.nn.in_top_k(input=logits,
+predictions = tf.nn.in_top_k(predictions=logits,
                              targets=label_batch,
                              k=1,
                              name='Predict')
@@ -256,7 +256,7 @@ accuracy_op = tf.reduce_mean(predictions)
 accuracy_summary = tf.summary.scalar(tensor=accuracy_op,
                                      name='Accuracy')
 
-predictions_5 = tf.nn.in_top_k(input=logits,
+predictions_5 = tf.nn.in_top_k(predictions=logits,
                                targets=label_batch,
                                k=5,
                                name='Predict5')
