@@ -102,13 +102,21 @@ VALIDATION_INTERVAL = NUM_BATCHES_PER_EPOCH // VALIDATIONS_PER_EPOCH
 TESTS_PER_EPOCH = 0.1
 TEST_INTERVAL = int(NUM_BATCHES_PER_EPOCH // TESTS_PER_EPOCH)
 
-# Step 2: Augment Data
+# Step 2: Pre-process / Normalize data
+def mean_image_initializer():
+    cast_data = tf.cast(train.data, tf.float32)
+    normalized_data = tf.divide(cast_data, tf.constant(255.0, tf.float32))
+    return tf.reduce_mean(normalized_data,
+                          axis=0,
+                          keepdims=True)
 
-# Step 3: Pre-process / Normalize data
 
-# Step 4: Build NN architecture
+mean_image = tf.Variable(initial_value=mean_image_initializer(),
+                         name='MeanImage',
+                         trainable=False)
 
 
+# Step 3: Build NN architecture
 def create_conv_layer(num, inputs, filters, size=5, stride=1):
     layer_name = 'Conv' + str(num) + '-' + str(size) + 'x' + str(size) + 'x' + str(filters) + '-' + str(stride)
 
@@ -142,20 +150,7 @@ def create_dense_layer(num, inputs, nodes, activation=tf.nn.relu):
                            name=layer_name)
 
 
-# Step 4.0: Prep Data
-def mean_image_initializer():
-    cast_data = tf.cast(train.data, tf.float32)
-    normalized_data = tf.divide(cast_data, tf.constant(255.0, tf.float32))
-    return tf.reduce_mean(normalized_data,
-                          axis=0,
-                          keepdims=True)
-
-
-mean_image = tf.Variable(initial_value=mean_image_initializer(),
-                         name='MeanImage',
-                         trainable=False)
-
-
+# Step 3.1: Prep Data
 data_type = tf.placeholder(tf.uint8, name='DataType')
 
 
@@ -206,7 +201,7 @@ data_batch_cast = tf.subtract(x=data_batch_cast,
                               y=mean_image,
                               name='MeanSubtraction')
 
-# Step 4.1: Build Architecture
+# Step 3.2: Stitch Layers
 input_layer = tf.reshape(tensor=data_batch_cast,
                          shape=[-1, IMAGE_SIZE, IMAGE_SIZE, IMAGE_DEPTH],
                          name='MakeImage')
@@ -242,6 +237,7 @@ logits = create_dense_layer(num=3,
                             nodes=100)
 
 
+# Step 3.3: Optimize Loss
 loss_op = tf.losses.sparse_softmax_cross_entropy(labels=label_batch,
                                                  logits=logits)
 tf.summary.scalar(name='Loss',
@@ -250,13 +246,25 @@ tf.summary.scalar(name='Loss',
 train_step = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(loss_op)
 
 
-predictions = tf.argmax(input=logits,
-                        axis=1,
-                        name='Predict')
+# Step 4: Detail accuracy and confusion matrix scores.
+predictions = tf.nn.in_top_k(input=logits,
+                             targets=label_batch,
+                             k=1,
+                             name='Predict')
 
-accuracy_op = tf.reduce_mean(tf.cast(x=tf.equal(predictions, label_batch), dtype=tf.float32))
-accuracy_summary = tf.summary.scalar(name='Accuracy',
-                                     tensor=accuracy_op)
+accuracy_op = tf.reduce_mean(predictions)
+accuracy_summary = tf.summary.scalar(tensor=accuracy_op,
+                                     name='Accuracy')
+
+predictions_5 = tf.nn.in_top_k(input=logits,
+                               targets=label_batch,
+                               k=5,
+                               name='Predict5')
+
+accuracy_op_5 = tf.reduce_mean(predictions_5)
+accuracy_summary_5 = tf.summary.scalar(tensor=accuracy_op_5,
+                                       name='Accuracy5')
+
 
 confusion_matrix_op = tf.confusion_matrix(labels=label_batch,
                                           predictions=predictions,
@@ -264,14 +272,8 @@ confusion_matrix_op = tf.confusion_matrix(labels=label_batch,
 
 merged_summary = tf.summary.merge_all()
 
+
 def save_confusion_matix(confusion_matrix, count):
-
-
-    sum_across_axis = confusion_matrix.sum(axis=1)[:, np.newaxis]
-    confusion_matrix = confusion_matrix.astype('float') / sum_across_axis
-    confusion_matrix = np.nan_to_num(confusion_matrix)
-    np.set_printoptions(2)
-
     plt.figure(figsize=(100, 100))
     plt.imshow(confusion_matrix, interpolation='nearest', cmap=plt.cm.Blues)
     plt.title('Confusion Matrix: ' + str(count))
@@ -280,7 +282,7 @@ def save_confusion_matix(confusion_matrix, count):
     plt.xticks(tick_marks, meta.fine_label_names, rotation=45)
     plt.yticks(tick_marks, meta.fine_label_names)
 
-    fmt = '.2f'
+    fmt = 'd'
     thresh = confusion_matrix.max() / 2.
     for i, j in itertools.product(range(confusion_matrix.shape[0]), range(confusion_matrix.shape[1])):
         plt.text(j, i, format(confusion_matrix[i, j], fmt),
