@@ -31,8 +31,8 @@ class Data:
     def __init__(self, file):
         def unpickle(file):
             with open(file, 'rb') as fo:
-                dict = pickle.load(fo, encoding='bytes')
-            return dict
+                data_dict = pickle.load(fo, encoding='bytes')
+            return data_dict
 
         self.raw = unpickle('data/' + file)
 
@@ -68,8 +68,8 @@ class Meta:
     def __init__(self):
         def unpickle(file):
             with open(file, 'rb') as fo:
-                dict = pickle.load(fo, encoding='bytes')
-            return dict
+                data_dict = pickle.load(fo, encoding='bytes')
+            return data_dict
 
         self.raw = unpickle('data/meta')
         self.fine_label_names = [fine_label_name.decode('utf-8') for fine_label_name in self.raw[b'fine_label_names']]
@@ -88,9 +88,10 @@ test = Data('test')
 TRAIN_SIZE = 40000
 train.select(finish=TRAIN_SIZE)
 validation.select(start=TRAIN_SIZE)
+#test.select(finish=80)
 
 # Step 1.1: Setup training constants
-EPOCHS = 100
+EPOCHS = 150
 BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 IMAGE_SIZE = 32
@@ -279,11 +280,38 @@ accuracy5_summary = tf.summary.scalar(tensor=accuracy5_op,
 prediction_op = tf.argmax(input=logits,
                           axis=1,
                           name='PredictLabels')
+
 confusion_matrix_op = tf.confusion_matrix(labels=label_batch,
                                           predictions=prediction_op,
                                           name='Confusion')
 
 merged_summary = tf.summary.merge_all()
+
+correct_values_op = tf.where(tf.equal(x=prediction_op,
+                                      y=label_batch,
+                                      name='CorrectPrediction'))
+
+correct_values_op = tf.gather(params=correct_values_op,
+                              indices=tf.random_uniform(shape=(5,),
+                                                        minval=0,
+                                                        maxval=tf.maximum(tf.size(input=correct_values_op), 1),
+                                                        dtype=tf.int32),
+                              name='GatherCorrect')
+
+wrong_values_op = tf.where(tf.not_equal(x=prediction_op,
+                                        y=label_batch,
+                                        name='WrongPrediction'))
+
+wrong_values_op = tf.gather(params=wrong_values_op,
+                            indices=tf.random_uniform(shape=(5,),
+                                                      minval=0,
+                                                      maxval=tf.maximum(tf.size(input=wrong_values_op), 1),
+                                                      dtype=tf.int32),
+                            name='GatherWrong')
+
+samples_op = tf.concat(values=[correct_values_op, wrong_values_op],
+                       axis=0,
+                       name='Sampling')
 
 
 def save_confusion_matix(confusion_matrix, count):
@@ -313,11 +341,11 @@ def save_confusion_matix(confusion_matrix, count):
     plt.close()
 
 
-def gather(data, labels, predictions, count):
-    samples = np.random.choice(a=len(data),
-                               size=20)
+def gather(data, labels, predictions, sampled_indices, count):
+    sampled_indices = np.unique(sampled_indices.flatten())
 
     def save_sample(sample):
+        print(sample)
         image = np.reshape(data[sample], [3, 32, 32])
         image = np.transpose(image, [1, 2, 0])
         plt.figure()
@@ -328,7 +356,7 @@ def gather(data, labels, predictions, count):
         plt.savefig(log_name + '_' + str(count) + '_sample_' + real_name + '.png')
         plt.close()
 
-    for sample in samples:
+    for sample in sampled_indices:
         save_sample(sample)
 
 
@@ -371,8 +399,8 @@ with tf.Session() as sess:
                 print('Ran half epoch ' + str(half_epoch_count))
 
             if global_batch_count % TEST_INTERVAL == 0:
-                data, labels, predictions, confusion_matrix, acc, acc5 = \
-                    sess.run([data_batch, label_batch, prediction_op, confusion_matrix_op, accuracy_summary, accuracy5_summary],
+                data, labels, predictions, samples, confusion_matrix, acc, acc5 = \
+                    sess.run([data_batch, label_batch, prediction_op, samples_op, confusion_matrix_op, accuracy_summary, accuracy5_summary],
                              feed_dict={data_type: 3})
                 test_writer.add_summary(acc,
                                         global_step=test_epoch_count)
@@ -384,7 +412,9 @@ with tf.Session() as sess:
                 print(confusion_matrix)
                 print('-----------------------------------')
                 save_confusion_matix(confusion_matrix, test_epoch_count)
-                gather(data, labels, predictions, test_epoch_count)
+                print('Saved Confusion Matrix')
+                gather(data, labels, predictions, samples, test_epoch_count)
+                print('Sampled Results')
         except tf.errors.OutOfRangeError:
             print('End of Epochs')
             break
