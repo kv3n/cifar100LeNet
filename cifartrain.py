@@ -7,14 +7,22 @@ import matplotlib.pyplot as plt
 import pickle
 import argparse
 import time
+import random
 
 parser = argparse.ArgumentParser(description='Tensorflow Log Name')
 parser.add_argument('logname', type=str, nargs='?', help='name of logfile', default='--t')
+parser.add_argument('seed', type=int, nargs='?', help='random seed. 0 if true random', default=0)
 
 args = parser.parse_args()
 log_name = args.logname
 if log_name == '--t':
     log_name = str(time.time())
+
+seed = args.seed
+if seed == 0:
+    seed = random.randint(0, 1 << 32)
+    print('Setting seed: ' + str(seed))
+
 
 class Data:
     # Train and Test Data Layout
@@ -95,6 +103,7 @@ EPOCHS = 150
 BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 IMAGE_SIZE = 32
+CROP_SIZE = 28
 IMAGE_DEPTH = 3
 TRAIN_SIZE = train.num_data
 VALIDATIONS_PER_EPOCH = 2
@@ -102,6 +111,9 @@ NUM_BATCHES_PER_EPOCH = TRAIN_SIZE // BATCH_SIZE
 VALIDATION_INTERVAL = NUM_BATCHES_PER_EPOCH // VALIDATIONS_PER_EPOCH
 TESTS_PER_EPOCH = 0.1
 TEST_INTERVAL = int(NUM_BATCHES_PER_EPOCH // TESTS_PER_EPOCH)
+
+# Step 1.2: Set random seed for all randoms in tensorflow
+tf.set_random_seed(seed=seed)
 
 # Step 2: Pre-process / Normalize data
 def mean_image_initializer():
@@ -115,7 +127,6 @@ def mean_image_initializer():
 mean_image = tf.Variable(initial_value=mean_image_initializer(),
                          name='MeanImage',
                          trainable=False)
-
 
 # Step 3: Build NN architecture
 def create_conv_layer(num, inputs, filters, size=5, stride=1):
@@ -152,7 +163,14 @@ def create_dense_layer(num, inputs, nodes, activation=tf.nn.relu):
 
 
 # Step 3.1: Prep Data
+TRAIN_DATA_TYPE = 1
+VAL_DATA_TYPE = 2
+TEST_DATA_TYPE = 3
+
 data_type = tf.placeholder(tf.uint8, name='DataType')
+train_data_type = tf.constant(value=TRAIN_DATA_TYPE, dtype=tf.uint8, name='TrainDataType')
+val_data_type = tf.constant(value=VAL_DATA_TYPE, dtype=tf.uint8, name='ValDataType')
+test_data_type = tf.constant(value=TEST_DATA_TYPE, dtype=tf.uint8, name='TestDataType')
 
 
 # Training Data Iterator
@@ -188,9 +206,9 @@ def get_test_iter():
     return test_input_iter.get_next(name='TestData')
 
 
-data_batch, label_batch = tf.case(pred_fn_pairs={tf.equal(data_type, tf.constant(1, tf.uint8)): get_train_iter,
-                                                 tf.equal(data_type, tf.constant(2, tf.uint8)): get_validation_iter,
-                                                 tf.equal(data_type, tf.constant(3, tf.uint8)): get_test_iter},
+data_batch, label_batch = tf.case(pred_fn_pairs={tf.equal(data_type, train_data_type): get_train_iter,
+                                                 tf.equal(data_type, val_data_type): get_validation_iter,
+                                                 tf.equal(data_type, test_data_type): get_test_iter},
                                   exclusive=True,
                                   default=get_train_iter,
                                   name='DataSelector')
@@ -202,7 +220,6 @@ data_batch_cast = tf.subtract(x=data_batch_cast,
                               y=mean_image,
                               name='MeanSubtraction')
 
-# Step 3.2: Stitch Layers
 """
 # This reshape isn't correct. But that said, this gave 30% results? What did I do?
 input_layer = tf.reshape(tensor=data_batch_cast,
@@ -217,7 +234,29 @@ input_layer = tf.transpose(a=input_layer,
                            perm=[0, 2, 3, 1],
                            name='MakeImage-Part2')
 
+# Step 3.1.1: Augment data
+def augment_only_on_train():
+    data_to_augment = tf.map_fn(lambda img: tf.image.random_flip_left_right(img), elems=input_layer)
+    data_to_augment = tf.map_fn(lambda img: tf.image.random_flip_up_down(img), elems=data_to_augment)
+    data_to_augment = tf.map_fn(lambda img: tf.image.random_crop(value=img,
+                                                                 size=[CROP_SIZE, CROP_SIZE, IMAGE_DEPTH]),
+                                elems=data_to_augment)
+    data_to_augment = tf.image.resize_images(images=data_to_augment,
+                                             size=[IMAGE_SIZE, IMAGE_SIZE])
+    return data_to_augment
 
+def no_augment():
+    return input_layer
+
+
+input_layer = tf.cond(pred=tf.equal(data_type, train_data_type),
+                      true_fn=augment_only_on_train,
+                      false_fn=no_augment,
+                      name='AugmentSelect')
+
+input_shape = tf.shape(input_layer)
+
+# Step 3.2: Stitch Layers
 first_convolution_layer = create_conv_layer(num=1,
                                             inputs=input_layer,
                                             filters=6)
@@ -378,8 +417,10 @@ with tf.Session() as sess:
     while True:
         try:
             # Run mini-batch
-            _, batch_summary = sess.run([train_step, merged_summary],
-                                        feed_dict={data_type: 1})
+            _, inshape, batch_summary = sess.run([train_step, input_shape, merged_summary],
+                                                 feed_dict={data_type: 1})
+
+            print(inshape)
 
             train_writer.add_summary(batch_summary,
                                      global_step=global_batch_count)
