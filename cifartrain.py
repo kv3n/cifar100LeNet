@@ -237,28 +237,22 @@ input_layer = tf.transpose(a=input_layer,
 # Step 3.1.1: Augment data
 def augment_only_on_train():
     data_to_augment = tf.map_fn(lambda img: tf.image.random_flip_left_right(img), elems=input_layer)
-    data_to_augment = tf.map_fn(lambda img: tf.image.random_flip_up_down(img), elems=data_to_augment)
-    data_to_augment = tf.map_fn(lambda img: tf.image.random_crop(value=img,
-                                                                 size=[CROP_SIZE, CROP_SIZE, IMAGE_DEPTH]),
-                                elems=data_to_augment)
-    data_to_augment = tf.image.resize_images(images=data_to_augment,
-                                             size=[IMAGE_SIZE, IMAGE_SIZE])
+    
     return data_to_augment
+
 
 def no_augment():
     return input_layer
 
 
-input_layer = tf.cond(pred=tf.equal(data_type, train_data_type),
-                      true_fn=augment_only_on_train,
-                      false_fn=no_augment,
-                      name='AugmentSelect')
-
-input_shape = tf.shape(input_layer)
+augmented_layer = tf.cond(pred=tf.equal(data_type, train_data_type),
+                          true_fn=augment_only_on_train,
+                          false_fn=no_augment,
+                          name='AugmentSelect')
 
 # Step 3.2: Stitch Layers
 first_convolution_layer = create_conv_layer(num=1,
-                                            inputs=input_layer,
+                                            inputs=augmented_layer,
                                             filters=6)
 
 first_pooling_layer = create_pooling_layer(num=1,
@@ -417,10 +411,8 @@ with tf.Session() as sess:
     while True:
         try:
             # Run mini-batch
-            _, inshape, batch_summary = sess.run([train_step, input_shape, merged_summary],
-                                                 feed_dict={data_type: 1})
-
-            print(inshape)
+            _, batch_summary = sess.run([train_step, merged_summary],
+                                        feed_dict={data_type: 1})
 
             train_writer.add_summary(batch_summary,
                                      global_step=global_batch_count)
