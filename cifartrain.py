@@ -345,7 +345,6 @@ def gather(data, labels, predictions, sampled_indices, count):
     sampled_indices = np.unique(sampled_indices.flatten())
 
     def save_sample(sample):
-        print(sample)
         image = np.reshape(data[sample], [3, 32, 32])
         image = np.transpose(image, [1, 2, 0])
         plt.figure()
