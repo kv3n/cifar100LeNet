@@ -236,7 +236,12 @@ input_layer = tf.transpose(a=input_layer,
 
 # Step 3.1.1: Augment data
 def augment_only_on_train():
-    data_to_augment = tf.map_fn(lambda img: tf.image.random_flip_left_right(img), elems=input_layer)
+    #data_to_augment = tf.map_fn(lambda img: tf.image.random_flip_left_right(img), elems=input_layer)
+    data_to_augment = tf.map_fn(lambda img: tf.image.random_crop(value=img,
+                                                                 size=[CROP_SIZE, CROP_SIZE, IMAGE_DEPTH]),
+                                elems=input_layer)
+    data_to_augment = tf.image.resize_images(images=data_to_augment,
+                                             size=[IMAGE_SIZE, IMAGE_SIZE])
     
     return data_to_augment
 
