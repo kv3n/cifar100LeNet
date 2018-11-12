@@ -165,11 +165,13 @@ def build_resnet_block(inputs):
     inputs = create_conv_layer(num='Res1',
                                inputs=inputs,
                                filters=3,
+                               size=3,
                                padding='same')
     inputs = build_batch_norm(num=2, inputs=inputs)
     inputs = create_conv_layer(num='Res2',
                                inputs=inputs,
                                filters=3,
+                               size=3,
                                padding='same')
 
     return tf.add(x=inputs, y=feed_forward, name=layer_name + '-FeedFoward')
