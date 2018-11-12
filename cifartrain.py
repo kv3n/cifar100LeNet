@@ -133,7 +133,18 @@ mean_image = tf.Variable(initial_value=mean_image_initializer(),
                          trainable=False)
 
 # Step 3: Build NN architecture
-def create_conv_layer(num, inputs, filters, size=5, stride=1):
+def build_batch_norm(num, inputs):
+    return tf.nn.relu(tf.layers.batch_normalization(inputs=inputs,
+                                                    axis=3,
+                                                    momentum=0.997,
+                                                    beta_initializer=tf.contrib.layers.xavier_initializer(),
+                                                    gamma_initializer=tf.contrib.layers.xavier_initializer(),
+                                                    moving_mean_initializer=tf.contrib.layers.xavier_initializer(),
+                                                    moving_variance_initializer=tf.contrib.layers.xavier_initializer()),
+                      name='Resnet-BatchNorm-' + str(num))
+
+
+def create_conv_layer(num, inputs, filters, size=5, stride=1, padding='valid'):
     layer_name = 'Conv' + str(num) + '-' + str(size) + 'x' + str(size) + 'x' + str(filters) + '-' + str(stride)
 
     return tf.layers.conv2d(inputs=inputs,
@@ -143,7 +154,25 @@ def create_conv_layer(num, inputs, filters, size=5, stride=1):
                             activation=tf.nn.relu,
                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
                             bias_initializer=tf.contrib.layers.xavier_initializer(),
+                            padding=padding,
                             name=layer_name)
+
+
+def build_resnet_block(inputs):
+    layer_name = 'Resnet'
+    feed_forward = inputs
+    inputs = build_batch_norm(inputs, 1)
+    inputs = create_conv_layer(num='Res1',
+                               inputs=inputs,
+                               filters=3,
+                               padding='same')
+    inputs = build_batch_norm(inputs, 2)
+    inputs = create_conv_layer(num='Res2',
+                               inputs=inputs,
+                               filters=3,
+                               padding='same')
+
+    return tf.add(inputs, feed_forward, name=layer_name + '-FeedFoward')
 
 
 def create_pooling_layer(num, inputs, size=2, stride=2):
@@ -262,8 +291,10 @@ augmented_layer = tf.cond(pred=tf.equal(data_type, train_data_type),
                           name='AugmentSelect')
 
 # Step 3.2: Stitch Layers
+feedfoward = build_resnet_block(inputs=augmented_layer)
+
 first_convolution_layer = create_conv_layer(num=1,
-                                            inputs=augmented_layer,
+                                            inputs=feedfoward,
                                             filters=6)
 
 first_pooling_layer = create_pooling_layer(num=1,
