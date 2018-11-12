@@ -94,13 +94,13 @@ test = Data('test')
 
 fine_to_coarse_label = dict(set(zip(train.fine_labels, train.coarse_labels)))
 fine_to_coarse_label_tf = tf.constant(value=[fine_to_coarse_label[label] for label in range(meta.fine_label_count)],
-                                      dtype=tf.int32)
+                                      dtype=tf.int64)
 
 # Step 1: Data Selection: Select 40000 examples
-TRAIN_SIZE = 40000
+TRAIN_SIZE = 400
 train.select(finish=TRAIN_SIZE)
-validation.select(start=TRAIN_SIZE)  # , finish=TRAIN_SIZE+100)
-# test.select(finish=100)
+validation.select(start=TRAIN_SIZE, finish=TRAIN_SIZE+100)
+test.select(finish=100)
 
 # Step 1.1: Setup training constants
 EPOCHS = 300
@@ -339,14 +339,16 @@ accuracy_super1_summary = tf.summary.scalar(tensor=super_top1_accuracy,
 _, prediction_op_superlabel5 = tf.nn.top_k(input=logits,
                                            k=5,
                                            sorted=False)
+prediction_op_superlabel5 = tf.cast(prediction_op_superlabel5, tf.int64)
 
 mapped_superlabel5 = tf.map_fn(lambda top5labels: tf.gather(params=fine_to_coarse_label_tf,
                                                             indices=top5labels),
                                elems=prediction_op_superlabel5)
 mapped_superlabel5 = tf.cast(mapped_superlabel5,
                              dtype=tf.int32)
-real_coarse_label = tf.cast(coarse_label_batch,
-                            dtype=tf.int32)
+real_coarse_label = tf.expand_dims(input=tf.cast(coarse_label_batch,
+                                                 dtype=tf.int32),
+                                   axis=1)
 super_top5_accuracy = tf.cast(tf.reduce_any(tf.logical_not(tf.cast(tf.subtract(x=mapped_superlabel5,
                                                                                y=real_coarse_label),
                                                                    dtype=tf.bool)),
