@@ -92,11 +92,12 @@ train = Data('train')
 validation = Data('train')
 test = Data('test')
 
+fine_to_coarse_label = dict(set(zip(train.fine_labels, train.coarse_labels)))
+
 # Step 1: Data Selection: Select 40000 examples
 TRAIN_SIZE = 40000
 train.select(finish=TRAIN_SIZE)
 validation.select(start=TRAIN_SIZE)
-#test.select(finish=80)
 
 # Step 1.1: Setup training constants
 EPOCHS = 150
@@ -174,7 +175,7 @@ test_data_type = tf.constant(value=TEST_DATA_TYPE, dtype=tf.uint8, name='TestDat
 
 
 # Training Data Iterator
-train_raw_input = tf.data.Dataset.from_tensor_slices((train.data, train.fine_labels))
+train_raw_input = tf.data.Dataset.from_tensor_slices((train.data, train.fine_labels, train.coarse_labels))
 train_dataset = train_raw_input.shuffle(buffer_size=train.num_data,
                                         reshuffle_each_iteration=True)\
                                .repeat(count=EPOCHS)\
@@ -182,13 +183,13 @@ train_dataset = train_raw_input.shuffle(buffer_size=train.num_data,
 train_input_iter = train_dataset.make_one_shot_iterator()
 
 # Validation Data Iterator
-validation_raw_input = tf.data.Dataset.from_tensor_slices((validation.data, validation.fine_labels))
+validation_raw_input = tf.data.Dataset.from_tensor_slices((validation.data, validation.fine_labels, validation.coarse_labels))
 validation_dataset = validation_raw_input.repeat(count=int(EPOCHS * VALIDATIONS_PER_EPOCH))\
                                          .batch(batch_size=validation.num_data)
 validation_input_iter = validation_dataset.make_one_shot_iterator()
 
 # Test Data Iterator
-test_raw_input = tf.data.Dataset.from_tensor_slices((test.data, test.fine_labels))
+test_raw_input = tf.data.Dataset.from_tensor_slices((test.data, test.fine_labels, test.coarse_labels))
 test_dataset = test_raw_input.repeat(count=int(EPOCHS * TESTS_PER_EPOCH))\
                               .batch(batch_size=test.num_data)
 test_input_iter = test_dataset.make_one_shot_iterator()
@@ -206,15 +207,15 @@ def get_test_iter():
     return test_input_iter.get_next(name='TestData')
 
 
-data_batch, label_batch = tf.case(pred_fn_pairs={tf.equal(data_type, train_data_type): get_train_iter,
-                                                 tf.equal(data_type, val_data_type): get_validation_iter,
-                                                 tf.equal(data_type, test_data_type): get_test_iter},
-                                  exclusive=True,
-                                  default=get_train_iter,
-                                  name='DataSelector')
+data_batch, label_batch, coarse_label_batch = tf.case(pred_fn_pairs={tf.equal(data_type, train_data_type): get_train_iter,
+                                                                     tf.equal(data_type, val_data_type): get_validation_iter,
+                                                                     tf.equal(data_type, test_data_type): get_test_iter},
+                                                      exclusive=True,
+                                                      default=get_train_iter,
+                                                      name='DataSelector')
 
 data_batch_cast = tf.cast(data_batch, tf.float32)
-# TODO: 0.0 to 1.0 the data... Is this needed?
+
 data_batch_cast = tf.divide(data_batch_cast, tf.constant(255.0, tf.float32))
 data_batch_cast = tf.subtract(x=data_batch_cast,
                               y=mean_image,
@@ -236,6 +237,8 @@ input_layer = tf.transpose(a=input_layer,
 
 # Step 3.1.1: Augment data
 def augment_only_on_train():
+    return input_layer
+    """
     #data_to_augment = tf.map_fn(lambda img: tf.image.random_flip_left_right(img), elems=input_layer)
     data_to_augment = tf.map_fn(lambda img: tf.image.random_crop(value=img,
                                                                  size=[CROP_SIZE, CROP_SIZE, IMAGE_DEPTH]),
@@ -244,6 +247,7 @@ def augment_only_on_train():
                                              size=[IMAGE_SIZE, IMAGE_SIZE])
     
     return data_to_augment
+    """
 
 
 def no_augment():
@@ -318,6 +322,37 @@ accuracy5_summary = tf.summary.scalar(tensor=accuracy5_op,
 prediction_op = tf.argmax(input=logits,
                           axis=1,
                           name='PredictLabels')
+
+# 4.1 Superlabel Predictions
+super_label_prediction_op = tf.map_fn(lambda label: fine_to_coarse_label[label],
+                                      elems=prediction_op)
+
+super_top1_accuracy = tf.reduce_mean(tf.cast(tf.equal(x=super_label_prediction_op,
+                                                      y=coarse_label_batch),
+                                             dtype=tf.float32))
+accuracy_super1_summary = tf.summary.scalar(tensor=super_top1_accuracy,
+                                            name='SuperLabelTop1')
+
+prediction_op_superlabel5, _ = tf.nn.top_k(input=logits,
+                                           k=5)
+
+mapped_superlabel5 = tf.map_fn(lambda top5labels: tf.map_fn(lambda label: fine_to_coarse_label[label],
+                                                            elems=top5labels),
+                               elems=prediction_op_superlabel5)
+mapped_superlabel5 = tf.cast(mapped_superlabel5,
+                             dtype=tf.int32)
+real_coarse_label = tf.cast(coarse_label_batch,
+                            dtype=tf.int32)
+super_top5_accuracy = tf.cast(tf.reduce_any(tf.logical_not(tf.cast(tf.subtract(x=mapped_superlabel5,
+                                                                               y=real_coarse_label),
+                                                                   dtype=tf.bool)),
+                                            axis=1),
+                              dtype=tf.float32)
+
+super_top5_accuracy = tf.reduce_mean(super_top5_accuracy)
+accuracy_super5_summary = tf.summary.scalar(tensor=super_top5_accuracy,
+                                            name='SuperLabelTop5')
+
 
 confusion_matrix_op = tf.confusion_matrix(labels=label_batch,
                                           predictions=prediction_op,
