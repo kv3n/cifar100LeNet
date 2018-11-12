@@ -94,7 +94,7 @@ test = Data('test')
 
 fine_to_coarse_label = dict(set(zip(train.fine_labels, train.coarse_labels)))
 fine_to_coarse_label_tf = tf.constant(value=[fine_to_coarse_label[label] for label in range(meta.fine_label_count)],
-                                      dtype=tf.int64)
+                                      dtype=tf.int32)
 
 # Step 1: Data Selection: Select 40000 examples
 TRAIN_SIZE = 40000
