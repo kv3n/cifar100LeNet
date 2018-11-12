@@ -93,14 +93,17 @@ validation = Data('train')
 test = Data('test')
 
 fine_to_coarse_label = dict(set(zip(train.fine_labels, train.coarse_labels)))
+fine_to_coarse_label_tf = tf.constant(value=[fine_to_coarse_label[label] for label in range(meta.fine_label_count)],
+                                      dtype=tf.int64)
 
 # Step 1: Data Selection: Select 40000 examples
 TRAIN_SIZE = 40000
 train.select(finish=TRAIN_SIZE)
-validation.select(start=TRAIN_SIZE)
+validation.select(start=TRAIN_SIZE)  # , finish=TRAIN_SIZE+100)
+# test.select(finish=100)
 
 # Step 1.1: Setup training constants
-EPOCHS = 150
+EPOCHS = 300
 BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 IMAGE_SIZE = 32
@@ -323,7 +326,8 @@ prediction_op = tf.argmax(input=logits,
                           name='PredictLabels')
 
 # 4.1 Superlabel Predictions
-super_label_prediction_op = tf.map_fn(lambda label: fine_to_coarse_label[label],
+super_label_prediction_op = tf.map_fn(lambda label: tf.gather(params=fine_to_coarse_label_tf,
+                                                              indices=label),
                                       elems=prediction_op)
 
 super_top1_accuracy = tf.reduce_mean(tf.cast(tf.equal(x=super_label_prediction_op,
@@ -332,11 +336,12 @@ super_top1_accuracy = tf.reduce_mean(tf.cast(tf.equal(x=super_label_prediction_o
 accuracy_super1_summary = tf.summary.scalar(tensor=super_top1_accuracy,
                                             name='SuperLabelTop1')
 
-prediction_op_superlabel5, _ = tf.nn.top_k(input=logits,
-                                           k=5)
+_, prediction_op_superlabel5 = tf.nn.top_k(input=logits,
+                                           k=5,
+                                           sorted=False)
 
-mapped_superlabel5 = tf.map_fn(lambda top5labels: tf.map_fn(lambda label: fine_to_coarse_label[label],
-                                                            elems=top5labels),
+mapped_superlabel5 = tf.map_fn(lambda top5labels: tf.gather(params=fine_to_coarse_label_tf,
+                                                            indices=top5labels),
                                elems=prediction_op_superlabel5)
 mapped_superlabel5 = tf.cast(mapped_superlabel5,
                              dtype=tf.int32)
@@ -459,24 +464,32 @@ with tf.Session() as sess:
             global_batch_count += 1
 
             if global_batch_count % VALIDATION_INTERVAL == 0:
-                acc, acc5 = sess.run([accuracy_summary, accuracy5_summary],
-                                     feed_dict={data_type: 2})
+                acc, acc5, superacc1, superacc5 = sess.run([accuracy_summary, accuracy5_summary, accuracy_super1_summary, accuracy_super5_summary],
+                                                           feed_dict={data_type: 2})
                 validation_writer.add_summary(acc,
                                               global_step=half_epoch_count)
                 validation_writer.add_summary(acc5,
+                                              global_step=half_epoch_count)
+                validation_writer.add_summary(superacc1,
+                                              global_step=half_epoch_count)
+                validation_writer.add_summary(superacc5,
                                               global_step=half_epoch_count)
 
                 half_epoch_count += 1
                 print('Ran half epoch ' + str(half_epoch_count))
 
             if global_batch_count % TEST_INTERVAL == 0:
-                data, labels, predictions, samples, confusion_matrix, acc, acc5 = \
-                    sess.run([data_batch, label_batch, prediction_op, samples_op, confusion_matrix_op, accuracy_summary, accuracy5_summary],
+                data, labels, predictions, samples, confusion_matrix, acc, acc5, superacc1, superacc5 = \
+                    sess.run([data_batch, label_batch, prediction_op, samples_op, confusion_matrix_op, accuracy_summary, accuracy5_summary, accuracy_super1_summary, accuracy_super5_summary],
                              feed_dict={data_type: 3})
                 test_writer.add_summary(acc,
                                         global_step=test_epoch_count)
                 test_writer.add_summary(acc5,
                                         global_step=test_epoch_count)
+                test_writer.add_summary(superacc1,
+                                        global_step=half_epoch_count)
+                test_writer.add_summary(superacc5,
+                                        global_step=half_epoch_count)
 
                 test_epoch_count += 1
                 print('Ran test ' + str(test_epoch_count))
