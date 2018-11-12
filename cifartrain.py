@@ -161,18 +161,18 @@ def create_conv_layer(num, inputs, filters, size=5, stride=1, padding='valid'):
 def build_resnet_block(inputs):
     layer_name = 'Resnet'
     feed_forward = inputs
-    inputs = build_batch_norm(inputs, 1)
+    inputs = build_batch_norm(num=1, inputs=inputs)
     inputs = create_conv_layer(num='Res1',
                                inputs=inputs,
                                filters=3,
                                padding='same')
-    inputs = build_batch_norm(inputs, 2)
+    inputs = build_batch_norm(num=2, inputs=inputs)
     inputs = create_conv_layer(num='Res2',
                                inputs=inputs,
                                filters=3,
                                padding='same')
 
-    return tf.add(inputs, feed_forward, name=layer_name + '-FeedFoward')
+    return tf.add(x=inputs, y=feed_forward, name=layer_name + '-FeedFoward')
 
 
 def create_pooling_layer(num, inputs, size=2, stride=2):
