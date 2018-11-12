@@ -104,7 +104,7 @@ EPOCHS = 150
 BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 IMAGE_SIZE = 32
-CROP_SIZE = 28
+CROP_SIZE = 29
 IMAGE_DEPTH = 3
 TRAIN_SIZE = train.num_data
 VALIDATIONS_PER_EPOCH = 2
@@ -242,9 +242,8 @@ def augment_only_on_train():
     #data_to_augment = tf.map_fn(lambda img: tf.image.random_flip_left_right(img), elems=input_layer)
     data_to_augment = tf.map_fn(lambda img: tf.image.random_crop(value=img,
                                                                  size=[CROP_SIZE, CROP_SIZE, IMAGE_DEPTH]),
+    data_to_augment = tf.map_fn(lambda img: tf.image.random_flip_up_down(img), 
                                 elems=input_layer)
-    data_to_augment = tf.image.resize_images(images=data_to_augment,
-                                             size=[IMAGE_SIZE, IMAGE_SIZE])
     
     return data_to_augment
     """
