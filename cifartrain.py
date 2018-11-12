@@ -97,10 +97,10 @@ fine_to_coarse_label_tf = tf.constant(value=[fine_to_coarse_label[label] for lab
                                       dtype=tf.int64)
 
 # Step 1: Data Selection: Select 40000 examples
-TRAIN_SIZE = 400
+TRAIN_SIZE = 40000
 train.select(finish=TRAIN_SIZE)
-validation.select(start=TRAIN_SIZE, finish=TRAIN_SIZE+100)
-test.select(finish=100)
+validation.select(start=TRAIN_SIZE) # , finish=TRAIN_SIZE+100)
+#test.select(finish=100)
 
 # Step 1.1: Setup training constants
 EPOCHS = 300
