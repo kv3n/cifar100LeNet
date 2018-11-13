@@ -43,13 +43,11 @@ def _augment_(image_batch):
 def build_model(image_batch, true_labels):
     image_batch = _augment_(image_batch)
 
-    image_batch = _create_conv_layer_(name='1', inputs=image_batch, size=3, filters=4)
-
-    image_batch = _create_conv_layer_(name='2', inputs=image_batch, filters=8)
+    image_batch = _create_conv_layer_(name='1', inputs=image_batch, filters=6)
 
     image_batch = _create_pooling_layer_(name='1', inputs=image_batch)
 
-    image_batch = _create_conv_layer_(name='3', inputs=image_batch, filters=16)
+    image_batch = _create_conv_layer_(name='2', inputs=image_batch, filters=16)
 
     image_batch = _create_pooling_layer_(name='2', inputs=image_batch)
 
