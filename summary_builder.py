@@ -1,9 +1,15 @@
 import tensorflow as tf
 import pickle
+import numpy as np
+import itertools
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
 
 
-class SummaryBuilder
+class SummaryBuilder:
     def __init__(self, log_name, mapping_constant):
+        self.log_name = log_name
         self.training = tf.summary.FileWriter(logdir=log_name + '_train/')
         self.validation = tf.summary.FileWriter(logdir=log_name + '_val/')
         self.test = tf.summary.FileWriter(logdir=log_name + '_test/')
@@ -79,4 +85,66 @@ class SummaryBuilder
 
         samples = tf.concat(values=[gather_correct, gather_wrong], axis=0, name='Sampling')
 
-        return confusion_matrix, samples
+        return predictions, confusion_matrix, samples
+
+    def validate_confusion_matrix(self, confusion_matrix, step_count):
+        sum = 0
+        for i in range(confusion_matrix.shape[0]):
+            sum += confusion_matrix[i, i]
+
+        confusion_acc = float(sum) / float(confusion_matrix.sum())
+        print(str(step_count) + ': ' + str(confusion_acc))
+
+
+    def save_confusion_matix(self, confusion_matrix, count):
+        sum_across_axis = confusion_matrix.sum(axis=1)[:, np.newaxis]
+        confusion_matrix_interp = confusion_matrix.astype('float') / sum_across_axis
+        confusion_matrix_interp = np.nan_to_num(confusion_matrix_interp)
+
+        plt.figure(figsize=(100, 100))
+        plt.imshow(confusion_matrix_interp, interpolation='nearest', cmap=plt.cm.Blues)
+        plt.title('Confusion Matrix: ' + str(count))
+        plt.colorbar()
+        tick_marks = np.arange(len(self.fine_label_names))
+        plt.xticks(tick_marks, self.fine_label_names, rotation=45)
+        plt.yticks(tick_marks, self.fine_label_names)
+
+        fmt = 'd'
+        thresh = confusion_matrix_interp.max() / 2.
+        for i, j in itertools.product(range(confusion_matrix.shape[0]), range(confusion_matrix.shape[1])):
+            plt.text(j, i, format(confusion_matrix[i, j], fmt),
+                     horizontalalignment="center",
+                     color="white" if confusion_matrix_interp[i, j] > thresh else "black")
+
+        plt.ylabel('True label')
+        plt.xlabel('Predicted label')
+
+        plt.savefig(self.log_name + '_confusion_matrix' + str(count) + '.png')
+        plt.close()
+
+    def gather(self, data, labels, predictions, sampled_indices, count):
+        sampled_indices = np.unique(sampled_indices.flatten())
+
+        def save_sample(sample):
+            image = np.reshape(data[sample], [3, 32, 32])
+            image = np.transpose(image, [1, 2, 0])
+            plt.figure()
+            plt.imshow(image)
+            real_name = self.fine_label_names[labels[sample]]
+            predict_name = self.fine_label_names[predictions[sample]]
+            plt.xlabel('Real: ' + real_name + ', Predict: ' + predict_name)
+            plt.savefig(self.log_name + '_' + str(count) + '_sample_' + real_name + '.png')
+            plt.close()
+
+        for sample in sampled_indices:
+            save_sample(sample)
+
+
+###################
+# TEST ONLY
+###################
+"""
+confusion_matrix = np.array([[2, 4], [3, 1]])
+summary = SummaryBuilder('Test', None)
+summary.validate_confusion_matrix(confusion_matrix, 0)
+"""

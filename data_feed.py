@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 EPOCHS = 3
 TRAIN_SIZE = 400
 VAL_SIZE = 100
-TEST_SIZE = 25
+TEST_SIZE = 100
 BATCH_SIZE = 64
 VALIDATIONS_PER_EPOCH = 2
 NUM_BATCHES_PER_EPOCH = TRAIN_SIZE // BATCH_SIZE
@@ -34,6 +34,9 @@ class Data:
             return data_dict
 
         self.data_type = datatype_placeholder
+        self.global_step = 0
+        self.validation_step = 0
+        self.test_step = 0
 
         train_end = TRAIN_SIZE
         val_end = train_end + VAL_SIZE
@@ -62,8 +65,8 @@ class Data:
                                       name='MeanImage',
                                       trainable=False)
 
-        mapping = dict(set(zip(train_raw[b'fine_labels'], train_raw[b'coarse_labels'])))
-        self.data_mapping = tf.constant(value=[mapping[label] for label in range(100)], dtype=tf.int64)
+        self.mapping = dict(set(zip(train_raw[b'fine_labels'], train_raw[b'coarse_labels'])))
+
 
     def __make_iterator__(self, raw, start, end, epochs, batch_size=-1):
         epochs = max(1, epochs)
@@ -97,7 +100,7 @@ class Data:
                               axis=0,
                               keepdims=True)
 
-    def get_iterator(self):
+    def __get_iterator__(self):
         return tf.case(pred_fn_pairs={tf.equal(self.data_type, 1): self.__get_train_iterator__,
                                       tf.equal(self.data_type, 2): self.__get_validation_iterator__,
                                       tf.equal(self.data_type, 3): self.__get_test_iterator__},
@@ -105,7 +108,7 @@ class Data:
                        name='DataSelector')
 
     def get_batch_feed(self):
-        input_data, fine_label, coarse_label = self.get_iterator()
+        input_data, fine_label, coarse_label = self.__get_iterator__()
         input_mean_shift = tf.subtract(x=tf.divide(tf.cast(input_data, tf.float32), 255.0),
                                        y=self.mean_image,
                                        name='MeanShift')
@@ -114,20 +117,14 @@ class Data:
                             perm=[0, 2, 3, 1],
                             name='MakeImage'), fine_label, coarse_label
 
+    def step_train(self):
+        self.global_step += 1
+        self.validation_step = self.global_step // VALIDATION_INTERVAL
+        self.test_step = self.global_step // TEST_INTERVAL
+        run_validation = (self.global_step % VALIDATION_INTERVAL == 0)
+        run_test = (self.global_step % TEST_INTERVAL == 0)
 
-class Meta:
-    def __init__(self):
-        def unpickle(file):
-            with open(file, 'rb') as fo:
-                data_dict = pickle.load(fo, encoding='bytes')
-            return data_dict
-
-        self.raw = unpickle('data/meta')
-        self.fine_label_names = [fine_label_name.decode('utf-8') for fine_label_name in self.raw[b'fine_label_names']]
-        self.coarse_label_names = [coarse_label_name.decode('utf-8') for coarse_label_name in self.raw[b'coarse_label_names']]
-        self.fine_label_count = len(self.fine_label_names)
-        self.coarse_label_count = len(self.coarse_label_names)
-
+        return run_validation, run_test
 
 ###################
 # TEST ONLY
