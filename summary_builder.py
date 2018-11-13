@@ -7,6 +7,7 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import os
 
+
 class SummaryBuilder:
     def __init__(self, log_name, mapping_constant):
         self.log_name = log_name
@@ -110,7 +111,6 @@ class SummaryBuilder:
 
         confusion_acc = float(sum) / float(confusion_matrix.sum())
         print(str(step_count) + ': ' + str(confusion_acc))
-
 
     def save_confusion_matix(self, confusion_matrix, count):
         sum_across_axis = confusion_matrix.sum(axis=1)[:, np.newaxis]
