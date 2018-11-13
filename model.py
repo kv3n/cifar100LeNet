@@ -80,6 +80,8 @@ def build_resnetstyle_model(image_batch, true_labels):
 
     augmented_batch = _create_conv_layer_(name='2', inputs=augmented_batch, filters=32, padding='same')
 
+    augmented_batch = _create_conv_layer_(name='3', inputs=augmented_batch, filters=3, padding='same')
+
     fedforward_batch = augmented_batch + image_batch
 
     flatten_batch = tf.layers.flatten(inputs=fedforward_batch, name='Conv2FC')
