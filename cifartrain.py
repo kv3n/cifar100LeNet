@@ -61,19 +61,19 @@ with tf.Session() as sess:
                 print('Ran Validation: ' + str(data_feed.validation_step))
 
             if run_test:
-                data, labels, predict, summary, confusion, samples = sess.run([batch, fine_labels, predictions,
-                                                                               test_summary, confusion_matrix,
-                                                                               sampling],
-                                                                              feed_dict={data_type: 3})
+                data, labels, predict, summary, cm, samples = sess.run([batch, fine_labels, predictions,
+                                                                        test_summary, confusion_matrix,
+                                                                        sampling],
+                                                                       feed_dict={data_type: 3})
 
                 summary_builder.test.add_summary(summary, global_step=data_feed.test_step)
                 print('Ran Test: ' + str(data_feed.test_step))
 
-                print(confusion_matrix)
+                print(cm)
                 print('-----------------------------------')
-                summary_builder.validate_confusion_matrix(confusion, data_feed.test_step)
+                summary_builder.validate_confusion_matrix(cm, data_feed.test_step)
 
-                summary_builder.save_confusion_matix(confusion_matrix, data_feed.test_step)
+                summary_builder.save_confusion_matix(cm, data_feed.test_step)
                 print('Saved Confusion Matrix')
 
                 summary_builder.gather(data, labels, predict, samples, data_feed.test_step)
