@@ -3,7 +3,7 @@ import tensorflow as tf
 LEARNING_RATE = 0.001
 
 
-def _create_conv_layer_(name, inputs, filters, size=5, stride=1, padding='valid'):
+def _create_conv_layer_(name, inputs, filters, size=3, stride=1, padding='valid'):
     layer_name = 'Conv' + str(name) + '-' + str(size) + 'x' + str(size) + 'x' + str(filters) + '-' + str(stride)
 
     return tf.layers.conv2d(inputs=inputs,
@@ -50,11 +50,11 @@ def __noaugment__(image_batch):
 def build_model(image_batch, true_labels):
     image_batch = _augment_(image_batch)
 
-    image_batch = _create_conv_layer_(name='1', inputs=image_batch, filters=6)
+    image_batch = _create_conv_layer_(name='1', inputs=image_batch, filters=16)
 
     image_batch = _create_pooling_layer_(name='1', inputs=image_batch)
 
-    image_batch = _create_conv_layer_(name='2', inputs=image_batch, filters=16)
+    image_batch = _create_conv_layer_(name='2', inputs=image_batch, filters=32)
 
     image_batch = _create_pooling_layer_(name='2', inputs=image_batch)
 
