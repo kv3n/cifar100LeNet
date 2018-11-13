@@ -76,13 +76,13 @@ def build_model(image_batch, true_labels):
 def build_resnetstyle_model(image_batch, true_labels):
     augmented_batch = _augment_(image_batch)
 
-    augmented_batch = _create_conv_layer_(name='1', inputs=augmented_batch, filters=16)
+    augmented_batch = _create_conv_layer_(name='1', inputs=augmented_batch, filters=16, padding='same')
 
-    augmented_batch = _create_conv_layer_(name='2', inputs=augmented_batch, filters=32)
+    augmented_batch = _create_conv_layer_(name='2', inputs=augmented_batch, filters=32, padding='same')
 
-    image_batch = augmented_batch + image_batch
+    fedforward_batch = augmented_batch + image_batch
 
-    flatten_batch = tf.layers.flatten(inputs=image_batch, name='Conv2FC')
+    flatten_batch = tf.layers.flatten(inputs=fedforward_batch, name='Conv2FC')
 
     flatten_batch = _create_dense_layer_(name='1', inputs=flatten_batch, nodes=120)
 
