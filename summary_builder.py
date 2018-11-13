@@ -38,13 +38,15 @@ class SummaryBuilder:
         if mapping is not None:
             topk = tf.map_fn(lambda top5: tf.gather(mapping, top5), elems=topk)
 
-        accuracy = tf.reduce_mean(tf.cast(tf.reduce_any(tf.equal(x=topk, y=true_labels)), tf.float32), name=name)
+        accuracy = tf.reduce_mean(tf.cast(tf.reduce_any(tf.equal(x=topk, y=true_labels), axis=1), tf.float32),
+                                  name=name)
         return tf.summary.scalar(name=name, tensor=accuracy)
 
     def build_summary(self, probabilities, loss, true_labels):
         loss_summary = tf.summary.scalar(name='Loss', tensor=loss)
         accuracy1_summary = self.__add_topk_to_summary__(k=1, probabilities=probabilities, true_labels=true_labels,
                                                          name='Top1-Accuracy')
+
         accuracy5_summary = self.__add_topk_to_summary__(k=5, probabilities=probabilities, true_labels=true_labels,
                                                          name='Top5-Accuracy')
         accuracysuper1_summary = self.__add_topk_to_summary__(k=1, probabilities=probabilities, true_labels=true_labels,
@@ -88,8 +90,8 @@ class SummaryBuilder:
 
         gather_wrong = tf.gather(params=wrong_values,
                                  indices=tf.random_uniform(shape=(5,), minval=0, dtype=tf.int32,
-                                                              maxval=tf.maximum(tf.size(input=wrong_values), 1)),
-                                    name='GatherWrong')
+                                                           maxval=tf.maximum(tf.size(input=wrong_values), 1)),
+                                 name='GatherWrong')
 
         samples = tf.concat(values=[gather_correct, gather_wrong], axis=0, name='Sampling')
 
