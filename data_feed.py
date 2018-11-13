@@ -102,9 +102,9 @@ class Data:
                        name='DataSelector')
 
     def get_batch_feed(self):
-        input_data, fine_label, coarse_label = data.get_iterator()
+        input_data, fine_label, coarse_label = self.get_iterator()
         input_mean_shift = tf.subtract(x=tf.divide(tf.cast(input_data, tf.float32), 255.0),
-                                       y=data.mean_image,
+                                       y=self.mean_image,
                                        name='MeanShift')
         return tf.transpose(a=tf.reshape(tensor=input_mean_shift,
                                          shape=[-1, 3, 32, 32]),
