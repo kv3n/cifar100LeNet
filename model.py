@@ -47,10 +47,8 @@ def __noaugment__(image_batch):
     return image_batch
 
 
-def build_model(image_batch, true_labels, is_train):
-    image_batch = tf.cond(pred=is_train,
-                          true_fn=_augment_(image_batch),
-                          false_fn=__noaugment__(image_batch))
+def build_model(image_batch, true_labels):
+    image_batch = _augment_(image_batch)
 
     image_batch = _create_conv_layer_(name='1', inputs=image_batch, filters=6)
 
