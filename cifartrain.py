@@ -47,6 +47,7 @@ with tf.Session() as sess:
     global_batch_count = 0
     half_epoch_count = 0
     test_epoch_count = 0
+
     while True:
         try:
             # Run mini-batch
@@ -80,6 +81,8 @@ with tf.Session() as sess:
 
                 summary_builder.gather(data, labels, predict, samples, data_feed.test_step)
                 print('Sampled Results')
+
+                summary_builder.print_trainables(using_sess=sess)
         except tf.errors.OutOfRangeError:
             print('End of Epochs')
             break

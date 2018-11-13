@@ -73,18 +73,28 @@ def build_model(image_batch, true_labels):
     return build_model_no_augment(image_batch, true_labels)
 
 
+def __resnetstyle_block__(batch_in, block_name):
+    forward = batch_in
+
+    block = _create_conv_layer_(name=block_name + '1', inputs=batch_in, filters=16, size=3, padding='same')
+
+    block = _create_conv_layer_(name=block_name + '2', inputs=block, filters=32, size=3, padding='same')
+
+    block = _create_conv_layer_(name=block_name + '3', inputs=block, filters=3, size=3, padding='same')
+
+    return tf.add(block, forward)
+
+
 def build_resnetstyle_model(image_batch, true_labels):
     augmented_batch = _augment_(image_batch)
 
-    augmented_batch = _create_conv_layer_(name='1', inputs=augmented_batch, filters=16, padding='same')
+    convolution = __resnetstyle_block__(augmented_batch, block_name='B1')
 
-    augmented_batch = _create_conv_layer_(name='2', inputs=augmented_batch, filters=32, padding='same')
+    convolution = __resnetstyle_block__(convolution, block_name='B2')
 
-    augmented_batch = _create_conv_layer_(name='3', inputs=augmented_batch, filters=3, padding='same')
+    convolution = __resnetstyle_block__(convolution, block_name='B3')
 
-    fedforward_batch = augmented_batch + image_batch
-
-    flatten_batch = tf.layers.flatten(inputs=fedforward_batch, name='Conv2FC')
+    flatten_batch = tf.layers.flatten(inputs=convolution, name='Conv2FC')
 
     flatten_batch = _create_dense_layer_(name='1', inputs=flatten_batch, nodes=120)
 

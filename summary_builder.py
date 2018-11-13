@@ -135,7 +135,7 @@ class SummaryBuilder:
         plt.ylabel('True label')
         plt.xlabel('Predicted label')
 
-        plt.savefig('piclog/' + self.log_name + '_confusion_matrix' + str(count) + '.png')
+        plt.savefig('piclog/' + self.log_name + '/confusion_matrix' + str(count) + '.png', bbox_inches='tight')
         plt.close()
 
     def gather(self, data, labels, predictions, sampled_indices, count):
@@ -148,7 +148,7 @@ class SummaryBuilder:
             plt.imshow(image)
 
             plt.xlabel('Real: ' + truename + ', Predict: ' + predictname)
-            plt.savefig('piclog/' + self.log_name + '/_' + str(count) + '_sample_' + truename + '.png')
+            plt.savefig('piclog/' + self.log_name + '/' + str(count) + '_sample_' + truename + '.png')
             plt.close()
 
         for sample in sampled_indices:
@@ -157,6 +157,16 @@ class SummaryBuilder:
             predict_name = self.fine_label_names[predictions[sample][0]]
             save_sample(sample_data, real_name, predict_name)
 
+    def print_trainables(self, using_sess):
+        variables_names = [v.name for v in tf.trainable_variables()]
+        values = using_sess.run(variables_names)
+        for variable_name, value in zip(variables_names, values):
+            print('###################################')
+            print("Variable: ", variable_name)
+            print("Shape: ", variable_name.shape)
+            print(value)
+            print('###################################')
+            print(' ')
 
 ###################
 # TEST ONLY
