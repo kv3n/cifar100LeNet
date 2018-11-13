@@ -42,17 +42,23 @@ class SummaryBuilder:
                                   name=name)
         return tf.summary.scalar(name=name, tensor=accuracy)
 
-    def build_summary(self, probabilities, loss, true_labels):
+    def build_summary(self, probabilities, loss, fine_labels, coarse_labels):
         loss_summary = tf.summary.scalar(name='Loss', tensor=loss)
-        accuracy1_summary = self.__add_topk_to_summary__(k=1, probabilities=probabilities, true_labels=true_labels,
+        accuracy1_summary = self.__add_topk_to_summary__(k=1, probabilities=probabilities,
+                                                         true_labels=fine_labels,
                                                          name='Top1-Accuracy')
 
-        accuracy5_summary = self.__add_topk_to_summary__(k=5, probabilities=probabilities, true_labels=true_labels,
+        accuracy5_summary = self.__add_topk_to_summary__(k=5, probabilities=probabilities,
+                                                         true_labels=fine_labels,
                                                          name='Top5-Accuracy')
-        accuracysuper1_summary = self.__add_topk_to_summary__(k=1, probabilities=probabilities, true_labels=true_labels,
+
+        accuracysuper1_summary = self.__add_topk_to_summary__(k=1, probabilities=probabilities,
+                                                              true_labels=coarse_labels,
                                                               name='Super-Top1-Accuracy',
                                                               mapping=self.mapping)
-        accuracysuper5_summary = self.__add_topk_to_summary__(k=5, probabilities=probabilities, true_labels=true_labels,
+
+        accuracysuper5_summary = self.__add_topk_to_summary__(k=5, probabilities=probabilities,
+                                                              true_labels=coarse_labels,
                                                               name='Super-Top5-Accuracy',
                                                               mapping=self.mapping)
 
@@ -135,19 +141,21 @@ class SummaryBuilder:
     def gather(self, data, labels, predictions, sampled_indices, count):
         sampled_indices = np.unique(sampled_indices.flatten())
 
-        def save_sample(sample):
-            image = np.reshape(data[sample], [3, 32, 32])
+        def save_sample(indata, truename, predictname):
+            image = np.reshape(indata, [3, 32, 32])
             image = np.transpose(image, [1, 2, 0])
             plt.figure()
             plt.imshow(image)
-            real_name = self.fine_label_names[labels[sample]]
-            predict_name = self.fine_label_names[predictions[sample]]
-            plt.xlabel('Real: ' + real_name + ', Predict: ' + predict_name)
-            plt.savefig('piclog/' + self.log_name + '_' + str(count) + '_sample_' + real_name + '.png')
+
+            plt.xlabel('Real: ' + truename + ', Predict: ' + predictname)
+            plt.savefig('piclog/' + self.log_name + '_' + str(count) + '_sample_' + truename + '.png')
             plt.close()
 
         for sample in sampled_indices:
-            save_sample(sample)
+            sample_data = data[sample]
+            real_name = self.fine_label_names[labels[sample]]
+            predict_name = self.fine_label_names[predictions[sample]]
+            save_sample(sample_data, real_name, predict_name)
 
 
 ###################

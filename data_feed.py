@@ -112,7 +112,7 @@ class Data:
         return tf.transpose(a=tf.reshape(tensor=input_mean_shift,
                                          shape=[-1, 3, 32, 32]),
                             perm=[0, 2, 3, 1],
-                            name='MakeImage'), fine_label, coarse_label
+                            name='MakeImage'), input_data, fine_label, coarse_label
 
     def step_train(self):
         self.global_step += 1

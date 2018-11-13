@@ -26,13 +26,15 @@ tf.set_random_seed(seed=seed)
 data_type = tf.placeholder(name='DataType', dtype=tf.uint8)
 data_feed = Data(datatype_placeholder=data_type)
 data_mapping = tf.constant(value=[data_feed.mapping[label] for label in range(100)], dtype=tf.int32)
-batch, fine_labels, coarse_labels = data_feed.get_batch_feed()
+batch, raw, fine_labels, coarse_labels = data_feed.get_batch_feed()
 
 output, optimize, loss = build_model(image_batch=batch, true_labels=fine_labels)
 
 summary_builder = SummaryBuilder(log_name, data_mapping)
 train_summary, validation_summary, test_summary = summary_builder.build_summary(probabilities=output,
-                                                                                loss=loss, true_labels=fine_labels)
+                                                                                loss=loss,
+                                                                                fine_labels=fine_labels,
+                                                                                coarse_labels=coarse_labels)
 
 predictions, confusion_matrix, sampling = summary_builder.create_confusion_and_sample(probabilities=output,
                                                                                       true_labels=fine_labels)
@@ -61,7 +63,7 @@ with tf.Session() as sess:
                 print('Ran Validation: ' + str(data_feed.validation_step))
 
             if run_test:
-                data, labels, predict, summary, cm, samples = sess.run([batch, fine_labels, predictions,
+                data, labels, predict, summary, cm, samples = sess.run([raw, fine_labels, predictions,
                                                                         test_summary, confusion_matrix,
                                                                         sampling],
                                                                        feed_dict={data_type: 3})
