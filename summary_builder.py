@@ -148,7 +148,7 @@ class SummaryBuilder:
             plt.imshow(image)
 
             plt.xlabel('Real: ' + truename + ', Predict: ' + predictname)
-            plt.savefig('piclog/' + self.log_name + '_' + str(count) + '_sample_' + truename + '.png')
+            plt.savefig('piclog/' + self.log_name + '/_' + str(count) + '_sample_' + truename + '.png')
             plt.close()
 
         for sample in sampled_indices:
