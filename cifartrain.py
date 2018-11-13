@@ -55,6 +55,7 @@ with tf.Session() as sess:
             summary_builder.training.add_summary(summary, global_step=data_feed.global_step)
 
             run_validation, run_test = data_feed.step_train()
+            run_test = True
 
             if run_validation:
                 _, summary = sess.run([output, validation_summary], feed_dict={data_type: 2})
@@ -78,6 +79,7 @@ with tf.Session() as sess:
                 summary_builder.save_confusion_matix(cm, data_feed.test_step)
                 print('Saved Confusion Matrix')
 
+                print(predict)
                 summary_builder.gather(data, labels, predict, samples, data_feed.test_step)
                 print('Sampled Results')
         except tf.errors.OutOfRangeError:
