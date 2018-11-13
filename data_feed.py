@@ -62,6 +62,9 @@ class Data:
                                       name='MeanImage',
                                       trainable=False)
 
+        mapping = dict(set(zip(train_raw[b'fine_labels'], train_raw[b'coarse_labels'])))
+        self.data_mapping = tf.constant(value=[mapping[label] for label in range(100)], dtype=tf.int64)
+
     def __make_iterator__(self, raw, start, end, epochs, batch_size=-1):
         epochs = max(1, epochs)
         if batch_size < 0:
