@@ -152,9 +152,9 @@ class SummaryBuilder:
             plt.close()
 
         for sample in sampled_indices:
-            sample_data = data[sample[0]]
-            real_name = self.fine_label_names[labels[sample[0]]]
-            predict_name = self.fine_label_names[predictions[sample[0]]]
+            sample_data = data[sample]
+            real_name = self.fine_label_names[labels[sample]]
+            predict_name = self.fine_label_names[predictions[sample][0]]
             save_sample(sample_data, real_name, predict_name)
 
 
