@@ -3,7 +3,7 @@ import tensorflow as tf
 LEARNING_RATE = 0.001
 
 
-def _create_conv_layer_(name, inputs, filters, size=3, stride=1, padding='valid'):
+def _create_conv_layer_(name, inputs, filters, size=5, stride=1, padding='valid'):
     layer_name = 'Conv' + str(name) + '-' + str(size) + 'x' + str(size) + 'x' + str(filters) + '-' + str(stride)
 
     return tf.layers.conv2d(inputs=inputs,
@@ -43,20 +43,44 @@ def _augment_(image_batch):
     return augmented_batch
 
 
-def __noaugment__(image_batch):
-    return image_batch
+def build_model_no_augment(image_batch, true_labels):
+    image_batch = _create_conv_layer_(name='1', inputs=image_batch, filters=6)
+
+    image_batch = _create_pooling_layer_(name='1', inputs=image_batch)
+
+    image_batch = _create_conv_layer_(name='2', inputs=image_batch, filters=16)
+
+    image_batch = _create_pooling_layer_(name='2', inputs=image_batch)
+
+    flatten_batch = tf.layers.flatten(inputs=image_batch, name='Conv2FC')
+
+    flatten_batch = _create_dense_layer_(name='1', inputs=flatten_batch, nodes=120)
+
+    flatten_batch = _create_dense_layer_(name='2', inputs=flatten_batch, nodes=84)
+
+    output = _create_dense_layer_(name='3', inputs=flatten_batch, nodes=100)
+
+    loss = tf.losses.sparse_softmax_cross_entropy(labels=true_labels, logits=output)
+
+    optimize = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(loss, name='Optimize')
+
+    return output, optimize, loss
 
 
 def build_model(image_batch, true_labels):
     image_batch = _augment_(image_batch)
 
-    image_batch = _create_conv_layer_(name='1', inputs=image_batch, filters=16)
+    return build_model_no_augment(image_batch, true_labels)
 
-    image_batch = _create_pooling_layer_(name='1', inputs=image_batch)
 
-    image_batch = _create_conv_layer_(name='2', inputs=image_batch, filters=32)
+def build_resnetstyle_model(image_batch, true_labels):
+    augmented_batch = _augment_(image_batch)
 
-    image_batch = _create_pooling_layer_(name='2', inputs=image_batch)
+    augmented_batch = _create_conv_layer_(name='1', inputs=augmented_batch, filters=16)
+
+    augmented_batch = _create_conv_layer_(name='2', inputs=augmented_batch, filters=32)
+
+    image_batch = augmented_batch + image_batch
 
     flatten_batch = tf.layers.flatten(inputs=image_batch, name='Conv2FC')
 

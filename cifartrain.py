@@ -28,7 +28,7 @@ data_feed = Data(datatype_placeholder=data_type)
 data_mapping = tf.constant(value=[data_feed.mapping[label] for label in range(100)], dtype=tf.int32)
 batch, raw, fine_labels, coarse_labels = data_feed.get_batch_feed()
 
-output, optimize, loss = build_model(image_batch=batch, true_labels=fine_labels)
+output, optimize, loss = build_model_no_augment(image_batch=batch, true_labels=fine_labels)
 
 summary_builder = SummaryBuilder(log_name, data_mapping)
 train_summary, validation_summary, test_summary = summary_builder.build_summary(probabilities=output,
