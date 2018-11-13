@@ -1,12 +1,11 @@
 import pickle
 import numpy as np
 import tensorflow as tf
-import matplotlib.pyplot as plt
 
-EPOCHS = 3
-TRAIN_SIZE = 400
-VAL_SIZE = 100
-TEST_SIZE = 100
+EPOCHS = 50
+TRAIN_SIZE = 40000
+VAL_SIZE = 10000
+TEST_SIZE = 10000
 BATCH_SIZE = 64
 VALIDATIONS_PER_EPOCH = 2
 NUM_BATCHES_PER_EPOCH = TRAIN_SIZE // BATCH_SIZE
@@ -67,17 +66,15 @@ class Data:
 
         self.mapping = dict(set(zip(train_raw[b'fine_labels'], train_raw[b'coarse_labels'])))
 
-
     def __make_iterator__(self, raw, start, end, epochs, batch_size=-1):
         epochs = max(1, epochs)
         if batch_size < 0:
             batch_size = (end - start)
 
         data = np.array(raw[b'data'])[start:end]
-        coarse_labels = np.array(raw[b'coarse_labels'])[start:end]
-        fine_labels = np.array(raw[b'fine_labels'])[start:end]
+        coarse_labels = np.array(raw[b'coarse_labels'])[start:end].astype('int32')
+        fine_labels = np.array(raw[b'fine_labels'])[start:end].astype('int32')
 
-        # Training Data Iterator
         dataset = tf.data.Dataset.from_tensor_slices((data, fine_labels, coarse_labels))
         dataset = dataset.shuffle(buffer_size=(end-start), reshuffle_each_iteration=True) \
                          .repeat(count=epochs) \
@@ -151,7 +148,7 @@ with tf.Session() as data_sess:
 # DEBUG HELPERS
 ##################
 
-
+"""
 def debug_draw_batch(batch, size):
     vstack = np.zeros([1, 32 * size + 1, 3], 'uint8')
 
@@ -164,3 +161,4 @@ def debug_draw_batch(batch, size):
     plt.figure()
     plt.imshow(vstack)
     plt.show()
+"""

@@ -5,14 +5,14 @@ import itertools
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
-
+import os
 
 class SummaryBuilder:
     def __init__(self, log_name, mapping_constant):
         self.log_name = log_name
-        self.training = tf.summary.FileWriter(logdir=log_name + '_train/')
-        self.validation = tf.summary.FileWriter(logdir=log_name + '_val/')
-        self.test = tf.summary.FileWriter(logdir=log_name + '_test/')
+        self.training = tf.summary.FileWriter(logdir='logs/' + log_name + '_train/')
+        self.validation = tf.summary.FileWriter(logdir='logs/' + log_name + '_val/')
+        self.test = tf.summary.FileWriter(logdir='logs/' + log_name + '_test/')
 
         self.mapping = mapping_constant
 
@@ -25,25 +25,33 @@ class SummaryBuilder:
         self.fine_label_names = [fine_label_name.decode('utf-8') for fine_label_name in raw[b'fine_label_names']]
         self.coarse_label_names = [coarse_label_name.decode('utf-8') for coarse_label_name in raw[b'coarse_label_names']]
 
+        if not os.path.exists('piclog/'):
+            os.mkdir('piclog')
+
+        if os.path.exists('piclog/' + log_name):
+            os.rmdir('piclog/' + log_name)
+        os.mkdir('piclog/' + log_name)
+
     def __add_topk_to_summary__(self, k, probabilities, true_labels, name, mapping=None):
-        topk = tf.nn.top_k(input=probabilities, k=k, sorted=False)
+        true_labels = tf.expand_dims(true_labels, axis=1)
+        _, topk = tf.nn.top_k(input=probabilities, k=k, sorted=False)
         if mapping is not None:
             topk = tf.map_fn(lambda top5: tf.gather(mapping, top5), elems=topk)
 
-        accuracy = tf.reduce_mean(tf.cast(tf.reduce_any(tf.equal(topk, true_labels)), tf.float32), name=name)
+        accuracy = tf.reduce_mean(tf.cast(tf.reduce_any(tf.equal(x=topk, y=true_labels)), tf.float32), name=name)
         return tf.summary.scalar(name=name, tensor=accuracy)
 
     def build_summary(self, probabilities, loss, true_labels):
         loss_summary = tf.summary.scalar(name='Loss', tensor=loss)
         accuracy1_summary = self.__add_topk_to_summary__(k=1, probabilities=probabilities, true_labels=true_labels,
-                                                         name='Top1 Accuracy')
+                                                         name='Top1-Accuracy')
         accuracy5_summary = self.__add_topk_to_summary__(k=5, probabilities=probabilities, true_labels=true_labels,
-                                                         name='Top5 Accuracy')
+                                                         name='Top5-Accuracy')
         accuracysuper1_summary = self.__add_topk_to_summary__(k=1, probabilities=probabilities, true_labels=true_labels,
-                                                              name='Super Top1 Accuracy',
+                                                              name='Super-Top1-Accuracy',
                                                               mapping=self.mapping)
         accuracysuper5_summary = self.__add_topk_to_summary__(k=5, probabilities=probabilities, true_labels=true_labels,
-                                                              name='Super Top5 Accuracy',
+                                                              name='Super-Top5-Accuracy',
                                                               mapping=self.mapping)
 
         train_summary = tf.summary.merge([loss_summary,
@@ -65,7 +73,7 @@ class SummaryBuilder:
         return train_summary, validation_summary, test_summary
 
     def create_confusion_and_sample(self, probabilities, true_labels):
-        predictions = tf.nn.top_k(input=probabilities, k=1, sorted=False)
+        _, predictions = tf.nn.top_k(input=probabilities, k=1, sorted=False)
 
         confusion_matrix = tf.confusion_matrix(labels=true_labels, predictions=predictions, name='Confusion')
 
@@ -119,7 +127,7 @@ class SummaryBuilder:
         plt.ylabel('True label')
         plt.xlabel('Predicted label')
 
-        plt.savefig(self.log_name + '_confusion_matrix' + str(count) + '.png')
+        plt.savefig('piclog/' + self.log_name + '_confusion_matrix' + str(count) + '.png')
         plt.close()
 
     def gather(self, data, labels, predictions, sampled_indices, count):
@@ -133,7 +141,7 @@ class SummaryBuilder:
             real_name = self.fine_label_names[labels[sample]]
             predict_name = self.fine_label_names[predictions[sample]]
             plt.xlabel('Real: ' + real_name + ', Predict: ' + predict_name)
-            plt.savefig(self.log_name + '_' + str(count) + '_sample_' + real_name + '.png')
+            plt.savefig('piclog/' + self.log_name + '_' + str(count) + '_sample_' + real_name + '.png')
             plt.close()
 
         for sample in sampled_indices:
