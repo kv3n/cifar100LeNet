@@ -98,9 +98,9 @@ class Data:
                               keepdims=True)
 
     def __get_iterator__(self):
-        return tf.case(pred_fn_pairs={tf.equal(self.data_type, 1): self.__get_train_iterator__,
-                                      tf.equal(self.data_type, 2): self.__get_validation_iterator__,
-                                      tf.equal(self.data_type, 3): self.__get_test_iterator__},
+        return tf.case(pred_fn_pairs={self.is_train(): self.__get_train_iterator__,
+                                      self.is_validation(): self.__get_validation_iterator__,
+                                      self.is_test(): self.__get_test_iterator__},
                        exclusive=True,
                        name='DataSelector')
 
@@ -122,6 +122,15 @@ class Data:
         run_test = (self.global_step % TEST_INTERVAL == 0)
 
         return run_validation, run_test
+
+    def is_train(self):
+        return tf.equal(self.data_type, 1)
+
+    def is_validation(self):
+        return tf.equal(self.data_type, 2)
+
+    def is_test(self):
+        return tf.equal(self.data_type, 3)
 
 ###################
 # TEST ONLY

@@ -37,11 +37,20 @@ def _create_dense_layer_(name, inputs, nodes, activation=tf.nn.relu):
 
 
 def _augment_(image_batch):
-    return tf.image.random_flip_left_right(image_batch)
+    augmented_batch = tf.image.random_flip_left_right(image_batch)
+    augmented_batch = tf.map_fn(lambda img: tf.random_crop(value=img, size=[28, 28, 3]), elems=augmented_batch)
+    augmented_batch = tf.image.resize_images(augmented_batch, size=[32, 32])
+    return augmented_batch
 
 
-def build_model(image_batch, true_labels):
-    image_batch = _augment_(image_batch)
+def __noaugment__(image_batch):
+    return image_batch
+
+
+def build_model(image_batch, true_labels, is_train):
+    image_batch = tf.cond(pred=is_train,
+                          true_fn=_augment_(image_batch),
+                          false_fn=__noaugment__(image_batch))
 
     image_batch = _create_conv_layer_(name='1', inputs=image_batch, filters=6)
 
